@@ -1,0 +1,37 @@
+[package]
+name = "desknote"
+version = "1.0.0"
+description = "DeskNote - 轻量级桌面便签应用"
+authors = ["DeskNote"]
+edition = "2021"
+rust-version = "1.75"
+
+# 库定义（Tauri 2.x 推荐 lib + bin 分离）
+[lib]
+name = "desknote_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 后续阶段按需添加：
+# tauri-plugin-autostart = "2"
+# tauri-plugin-global-shortcut = "2"
+# tauri-plugin-dialog = "2"
+# tauri-plugin-fs = "2"
+# tokio = { version = "1", features = ["full"] }
+# uuid = { version = "1", features = ["v4"] }
+# chrono = { version = "0.4", features = ["serde"] }
+
+[profile.release]
+# 极致轻量：优化体积
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
