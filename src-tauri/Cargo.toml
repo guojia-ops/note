@@ -19,14 +19,20 @@ tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# 阶段 2 数据层依赖
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "1"
+
 # 后续阶段按需添加：
 # tauri-plugin-autostart = "2"
 # tauri-plugin-global-shortcut = "2"
 # tauri-plugin-dialog = "2"
 # tauri-plugin-fs = "2"
 # tokio = { version = "1", features = ["full"] }
-# uuid = { version = "1", features = ["v4"] }
-# chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tempfile = "3"
 
 [profile.release]
 # 极致轻量：优化体积
