@@ -45,7 +45,7 @@ fn ensure_dir(path: &Path) -> Result<()> {
 /// 数据目录路径访问器
 /// 缓存解析结果，避免每次都检测 D 盘
 pub struct Storage {
-    data_dir: PathBuf,
+    pub(crate) data_dir: PathBuf,
 }
 
 impl Storage {
