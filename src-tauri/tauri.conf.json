@@ -29,12 +29,22 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
-    ]
+    ],
+    "copyright": "Copyright © 2026 DeskNote",
+    "publisher": "DeskNote",
+    "category": "Productivity",
+    "shortDescription": "轻量级桌面便签应用",
+    "longDescription": "DeskNote 是一款极致轻量的桌面便签应用，支持将便签贴在屏幕上作为虚拟便利贴。",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
   }
 }

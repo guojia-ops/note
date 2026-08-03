@@ -10,7 +10,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 /// D 盘首选路径（PRD 4.2）
-const PREFERRED_DIR: &str = r"D:\ProgramData\notes_data";
+pub(crate) const PREFERRED_DIR: &str = r"D:\ProgramData\notes_data";
 
 /// 数据文件名
 const DATA_FILENAME: &str = "data.json";
@@ -48,6 +48,10 @@ pub struct Storage {
     pub(crate) data_dir: PathBuf,
 }
 
+/// 落盘重试参数（SOP 10.1）
+const SAVE_MAX_RETRIES: usize = 3;
+const SAVE_RETRY_INTERVAL_MS: u64 = 100;
+
 impl Storage {
     /// 创建 Storage 实例，确保目录结构存在
     pub fn new(app_data_dir: Option<&Path>) -> Result<Self> {
@@ -83,17 +87,33 @@ impl Storage {
 
     /// 读取所有便签数据
     /// 文件不存在时返回空 DataFile（首次启动）
+    /// SOP 10.2：JSON 损坏时尝试从 backups/ 最近一份恢复
     pub fn load_data(&self) -> Result<DataFile> {
         let path = self.data_path();
         if !path.exists() {
             return Ok(DataFile::default());
         }
-        let content = fs::read_to_string(&path)?;
+        let content = fs::read_to_string(&path).map_err(|e| {
+            eprintln!("[DeskNote] data.json 读取失败，尝试从备份恢复: {}", e);
+            Error::Io(e)
+        })?;
         if content.trim().is_empty() {
             return Ok(DataFile::default());
         }
-        let data: DataFile = serde_json::from_str(&content)?;
-        Ok(data)
+        match serde_json::from_str::<DataFile>(&content) {
+            Ok(data) => Ok(data),
+            Err(e) => {
+                // SOP 10.2：JSON 损坏，尝试从备份恢复
+                eprintln!("[DeskNote] data.json 解析失败，尝试从备份恢复: {}", e);
+                match self.restore_from_backup() {
+                    Some(data) => {
+                        println!("[DeskNote] 已从备份恢复 {} 条便签", data.notes.len());
+                        Ok(data)
+                    }
+                    None => Err(Error::Path(format!("data.json 损坏且无可用备份: {}", e))),
+                }
+            }
+        }
     }
 
     /// 读取配置
@@ -125,16 +145,79 @@ impl Storage {
         Ok(())
     }
 
-    /// 保存所有便签数据
-    pub fn save_data(&self, data: &DataFile) -> Result<()> {
-        let content = serde_json::to_string_pretty(data)?;
-        self.write_atomic(&self.data_path(), &content)
+    /// SOP 10.1：带重试的原子写入
+    /// 失败重试 SAVE_MAX_RETRIES 次，间隔 SAVE_RETRY_INTERVAL_MS
+    fn write_atomic_with_retry(&self, path: &Path, content: &str) -> Result<()> {
+        let mut last_err: Option<Error> = None;
+        for attempt in 1..=SAVE_MAX_RETRIES {
+            match self.write_atomic(path, content) {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    eprintln!(
+                        "[DeskNote] 落盘失败 (第 {}/{} 次): {}",
+                        attempt, SAVE_MAX_RETRIES, e
+                    );
+                    last_err = Some(e);
+                    if attempt < SAVE_MAX_RETRIES {
+                        std::thread::sleep(std::time::Duration::from_millis(
+                            SAVE_RETRY_INTERVAL_MS,
+                        ));
+                    }
+                }
+            }
+        }
+        Err(last_err.unwrap_or_else(|| Error::Path("落盘重试耗尽".into())))
     }
 
-    /// 保存配置
+    /// 保存所有便签数据（带重试，SOP 10.1）
+    pub fn save_data(&self, data: &DataFile) -> Result<()> {
+        let content = serde_json::to_string_pretty(data)?;
+        self.write_atomic_with_retry(&self.data_path(), &content)
+    }
+
+    /// 保存配置（带重试，SOP 10.1）
     pub fn save_config(&self, config: &Config) -> Result<()> {
         let content = serde_json::to_string_pretty(config)?;
-        self.write_atomic(&self.config_path(), &content)
+        self.write_atomic_with_retry(&self.config_path(), &content)
+    }
+
+    /// SOP 10.2：从 backups/ 最近一份备份恢复数据
+    /// 返回 Some(DataFile) 表示恢复成功，None 表示无可用备份
+    fn restore_from_backup(&self) -> Option<DataFile> {
+        let backup_dir = self.backup_dir();
+        if !backup_dir.exists() {
+            return None;
+        }
+        // 列出所有备份，按修改时间倒序（最新在前）
+        let mut backups: Vec<_> = fs::read_dir(&backup_dir)
+            .ok()?
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .map(|s| s.starts_with("data-") && s.ends_with(".json"))
+                    .unwrap_or(false)
+            })
+            .collect();
+        backups.sort_by(|a, b| {
+            b.metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                .cmp(
+                    &a.metadata()
+                        .and_then(|m| m.modified())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+                )
+        });
+
+        for entry in backups {
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                if let Ok(data) = serde_json::from_str::<DataFile>(&content) {
+                    return Some(data);
+                }
+            }
+        }
+        None
     }
 
     /// 创建备份（PRD 设置项 6）

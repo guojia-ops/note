@@ -43,22 +43,41 @@ export function stopConfigSubscription(): void {
   }
 }
 
-/** 应用主题到 <html> data-theme 属性
- * light / dark 直接生效；system 跟随 prefers-color-scheme
+/** 应用主题到 <html>：
+ * - data-theme-mode 存储用户选择（light/dark/system），用于判断是否跟随系统
+ * - data-theme 存实际生效主题（light/dark），供 CSS 选择器使用
+ * system 模式监听 prefers-color-scheme 变化自动切换
  */
+let systemMql: MediaQueryList | null = null;
+let systemListener: ((e: MediaQueryListEvent) => void) | null = null;
+
 export function applyTheme(theme: Config['theme']): void {
   const html = document.documentElement;
-  if (theme === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    html.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  html.setAttribute('data-theme-mode', theme);
 
-    // 监听系统主题变化（仅 system 模式）
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-      if (document.documentElement.getAttribute('data-theme') === 'system') return;
-      // 当前是 system 模式，跟随系统更新
-      html.setAttribute('data-theme', e.matches ? 'dark' : 'light');
-    });
+  if (theme === 'system') {
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    html.setAttribute('data-theme', mql.matches ? 'dark' : 'light');
+
+    // 先移除旧监听器，避免重复注册（主题切换时会重新调用 applyTheme）
+    if (systemMql && systemListener) {
+      systemMql.removeEventListener('change', systemListener);
+    }
+    systemListener = (e: MediaQueryListEvent) => {
+      // 仅在 system 模式下跟随系统
+      if (html.getAttribute('data-theme-mode') === 'system') {
+        html.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+      }
+    };
+    mql.addEventListener('change', systemListener);
+    systemMql = mql;
   } else {
+    // 切换到固定主题时移除系统监听
+    if (systemMql && systemListener) {
+      systemMql.removeEventListener('change', systemListener);
+      systemMql = null;
+      systemListener = null;
+    }
     html.setAttribute('data-theme', theme);
   }
 }

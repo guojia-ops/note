@@ -11,6 +11,8 @@ export const EVENT = {
   NOTE_PINNED: 'note:pinned',
   NOTE_UNPINNED: 'note:unpinned',
   CONFIG_UPDATED: 'config:updated',
+  TRAY_NEW_NOTE: 'tray:new-note',
+  STORAGE_ERROR: 'storage:error',
 } as const;
 
 /** 便签事件 payload */
@@ -46,6 +48,16 @@ export function onNoteUnpinned(cb: (id: string) => void): Promise<UnlistenFn> {
 /** 订阅 config:updated */
 export function onConfigUpdated(cb: () => void): Promise<UnlistenFn> {
   return listen(EVENT.CONFIG_UPDATED, () => cb());
+}
+
+/** 订阅 tray:new-note（托盘菜单/全局快捷键触发新建便签） */
+export function onTrayNewNote(cb: () => void): Promise<UnlistenFn> {
+  return listen(EVENT.TRAY_NEW_NOTE, () => cb());
+}
+
+/** 订阅 storage:error（落盘失败，主窗口显示 toast） */
+export function onStorageError(cb: (message: string) => void): Promise<UnlistenFn> {
+  return listen<string>(EVENT.STORAGE_ERROR, (e) => cb(e.payload));
 }
 
 /** 一次性订阅所有便签事件，统一回调

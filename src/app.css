@@ -12,23 +12,23 @@
 }
 
 :root {
-  /* 6 色板（PRD 9.3）—— 便签背景色 + 同色系深色（用于边框/阴影） */
-  --color-yellow: #fff9c4;
+  /* 6 色板（PRD 6.1 推荐色值）—— 便签背景色 + 同色系深色（用于边框/阴影） */
+  --color-yellow: #fff59d;
   --color-yellow-deep: #fbc02d;
-  --color-pink: #fce4ec;
-  --color-pink-deep: #ec407a;
-  --color-green: #dcedc8;
+  --color-pink: #f8bbd0;
+  --color-pink-deep: #e91e63;
+  --color-green: #c5e1a5;
   --color-green-deep: #7cb342;
-  --color-blue: #e1f5fe;
-  --color-blue-deep: #0288d1;
-  --color-purple: #f3e5f5;
+  --color-blue: #bbdefb;
+  --color-blue-deep: #1e88e5;
+  --color-purple: #e1bee7;
   --color-purple-deep: #8e24aa;
-  --color-orange: #ffe0b2;
+  --color-orange: #ffcc80;
   --color-orange-deep: #fb8c00;
 
-  /* 字体 */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    sans-serif;
+  /* 字体（PRD 9.6 系统默认字体栈） */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
 
   /* 间距 */

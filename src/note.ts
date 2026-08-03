@@ -1,4 +1,7 @@
-// 便签窗口入口（阶段 1 占位）
+// 便签窗口入口
+// 阶段 5：从 URL query 解析 id，挂载 NoteApp
+// 阶段 9：NoteApp 内部订阅 config:updated，主题变更实时同步
+
 import './app.css';
 import { mount } from 'svelte';
 import NoteApp from './views/NoteApp.svelte';

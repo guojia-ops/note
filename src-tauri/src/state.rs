@@ -72,7 +72,8 @@ impl AppState {
 
     /// 创建便签
     /// 返回新便签（调用方负责 emit 事件）
-    pub fn create_note(&self, title: String, content: String, color: NoteColor) -> Note {
+    /// SOP 10.4：落盘成功后若 auto_backup=true 调 create_backup
+    pub fn create_note(&self, title: String, content: String, color: NoteColor) -> Result<Note> {
         let mut note = Note::new();
         note.title = title;
         note.content = content;
@@ -80,9 +81,8 @@ impl AppState {
 
         let mut data = self.data.lock().unwrap();
         data.notes.push(note.clone());
-        // 同步落盘（阶段 10 改为防抖）
-        let _ = self.storage.save_data(&data);
-        note
+        self.save_data_with_backup(&data)?;
+        Ok(note)
     }
 
     /// 更新便签（部分字段）
@@ -119,7 +119,7 @@ impl AppState {
         note.touch();
 
         let updated = note.clone();
-        let _ = self.storage.save_data(&data);
+        self.save_data_with_backup(&data)?;
         Ok(updated)
     }
 
@@ -131,7 +131,7 @@ impl AppState {
         if data.notes.len() == before {
             return Err(Error::NotFound(id.to_string()));
         }
-        let _ = self.storage.save_data(&data);
+        self.save_data_with_backup(&data)?;
         Ok(())
     }
 
@@ -146,7 +146,7 @@ impl AppState {
         note.pinned = pinned;
         note.touch();
         let updated = note.clone();
-        let _ = self.storage.save_data(&data);
+        self.save_data_with_backup(&data)?;
         Ok(updated)
     }
 
@@ -171,7 +171,7 @@ impl AppState {
         *config = serde_json::from_value(current)
             .map_err(|e| Error::Path(format!("配置反序列化失败: {}", e)))?;
         let updated = config.clone();
-        let _ = self.storage.save_config(&config);
+        self.storage.save_config(&config)?;
         Ok(updated)
     }
 
@@ -204,14 +204,32 @@ impl AppState {
             }
         }
 
-        let _ = self.storage.save_data(&data);
+        self.save_data_with_backup(&data)?;
         Ok(ImportResult { imported, skipped })
+    }
+
+    /// SOP 10.4：落盘 + 自动备份
+    /// 落盘成功后，若 config.auto_backup=true，调 create_backup(backup_keep)
+    /// 备份失败只记日志，不影响主流程（数据已落盘）
+    /// 落盘失败返回 Err，供 commands 层 emit storage:error
+    fn save_data_with_backup(&self, data: &DataFile) -> Result<()> {
+        self.storage.save_data(data)?;
+        let config = self.config.lock().unwrap();
+        if config.auto_backup {
+            if let Err(e) = self.storage.create_backup(config.backup_keep) {
+                eprintln!("[DeskNote] 自动备份失败: {}", e);
+            }
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::{resolve_data_dir, PREFERRED_DIR};
+    use crate::types::Note;
+    use std::path::{Path, PathBuf};
     use tempfile::TempDir;
 
     fn make_state() -> (TempDir, AppState) {
@@ -223,10 +241,19 @@ mod tests {
         (tmp, state)
     }
 
+    /// 构造测试用 Storage（不经过 D 盘检测）
+    fn make_test_storage_pair() -> (TempDir, Storage) {
+        let tmp = TempDir::new().unwrap();
+        let data_dir = tmp.path().to_path_buf();
+        std::fs::create_dir_all(data_dir.join("backups")).unwrap();
+        let storage = Storage { data_dir };
+        (tmp, storage)
+    }
+
     #[test]
     fn create_note_persists_and_returns() {
         let (_tmp, state) = make_state();
-        let note = state.create_note("T1".into(), "C1".into(), NoteColor::Yellow);
+        let note = state.create_note("T1".into(), "C1".into(), NoteColor::Yellow).unwrap();
         assert_eq!(note.title, "T1");
         assert_eq!(state.list_notes().len(), 1);
 
@@ -242,7 +269,7 @@ mod tests {
     #[test]
     fn update_note_partial_fields() {
         let (_tmp, state) = make_state();
-        let note = state.create_note("T".into(), "C".into(), NoteColor::Yellow);
+        let note = state.create_note("T".into(), "C".into(), NoteColor::Yellow).unwrap();
 
         let fields = UpdateNoteFields {
             title: Some("New".into()),
@@ -279,8 +306,8 @@ mod tests {
     #[test]
     fn delete_note_removes_and_persists() {
         let (_tmp, state) = make_state();
-        let n1 = state.create_note("A".into(), "".into(), NoteColor::Yellow);
-        let _n2 = state.create_note("B".into(), "".into(), NoteColor::Pink);
+        let n1 = state.create_note("A".into(), "".into(), NoteColor::Yellow).unwrap();
+        let _n2 = state.create_note("B".into(), "".into(), NoteColor::Pink).unwrap();
 
         state.delete_note(&n1.id).unwrap();
         assert_eq!(state.list_notes().len(), 1);
@@ -290,7 +317,7 @@ mod tests {
     #[test]
     fn set_pinned_toggles_state() {
         let (_tmp, state) = make_state();
-        let note = state.create_note("T".into(), "".into(), NoteColor::Yellow);
+        let note = state.create_note("T".into(), "".into(), NoteColor::Yellow).unwrap();
         assert!(!note.pinned);
 
         let pinned = state.set_pinned(&note.id, true).unwrap();
@@ -316,8 +343,8 @@ mod tests {
     #[test]
     fn export_then_import_roundtrip() {
         let (_tmp, state) = make_state();
-        state.create_note("A".into(), "content a".into(), NoteColor::Yellow);
-        state.create_note("B".into(), "content b".into(), NoteColor::Pink);
+        state.create_note("A".into(), "content a".into(), NoteColor::Yellow).unwrap();
+        state.create_note("B".into(), "content b".into(), NoteColor::Pink).unwrap();
 
         let export_path = state.storage().data_dir().join("export.json");
         state.export_notes(&export_path).unwrap();
@@ -341,7 +368,7 @@ mod tests {
     #[test]
     fn import_skips_existing_ids() {
         let (_tmp, state) = make_state();
-        let n = state.create_note("A".into(), "old".into(), NoteColor::Yellow);
+        let n = state.create_note("A".into(), "old".into(), NoteColor::Yellow).unwrap();
 
         // 构造一个含相同 id 的导入文件
         let export_path = state.storage().data_dir().join("export.json");
@@ -356,5 +383,61 @@ mod tests {
         assert_eq!(result.imported, 1);
         assert_eq!(result.skipped, 1);
         assert_eq!(state.list_notes().len(), 2);
+    }
+
+    /// SOP 10.2：data.json 损坏时从备份恢复
+    #[test]
+    fn load_data_restores_from_backup_when_corrupted() {
+        let (_tmp, storage) = make_test_storage_pair();
+        // 先写正常数据
+        let mut data = DataFile::default();
+        data.notes.push(Note::new());
+        storage.save_data(&data).unwrap();
+
+        // 创建一份备份
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        storage.create_backup(5).unwrap();
+
+        // 破坏 data.json
+        std::fs::write(storage.data_path(), "{ corrupted json !!!").unwrap();
+
+        // load_data 应从备份恢复
+        let restored = storage.load_data().unwrap();
+        assert_eq!(restored.notes.len(), 1);
+    }
+
+    /// SOP 10.4：auto_backup=true 时 save 后产生备份
+    #[test]
+    fn auto_backup_creates_backup_after_save() {
+        let (_tmp, state) = make_state();
+        // 默认 config.auto_backup=true, backup_keep=5
+        state.create_note("T".into(), "C".into(), NoteColor::Yellow).unwrap();
+
+        let backup_count = std::fs::read_dir(state.storage().backup_dir())
+            .unwrap()
+            .filter(|e| {
+                e.as_ref()
+                    .ok()
+                    .and_then(|e| e.file_name().to_str().map(|s| s.starts_with("data-")))
+                    .unwrap_or(false)
+            })
+            .count();
+        assert_eq!(backup_count, 1, "auto_backup=true 时 save 后应产生 1 份备份");
+    }
+
+    /// SOP 10.3：路径兜底（D 盘不存在时回退 appDataDir）
+    #[test]
+    fn resolve_data_dir_fallback_logic() {
+        // 模拟 D 盘不存在：用临时目录作为 appDataDir
+        let tmp = TempDir::new().unwrap();
+        // 无论 D 盘是否存在，appDataDir 路径都应被正确处理
+        let resolved = resolve_data_dir(Some(tmp.path()));
+        // D 盘存在时返回 D 盘路径，不存在时返回 tmp 路径
+        let d_drive = Path::new(r"D:\");
+        if d_drive.exists() {
+            assert_eq!(resolved.unwrap(), PathBuf::from(PREFERRED_DIR));
+        } else {
+            assert_eq!(resolved.unwrap(), tmp.path().to_path_buf());
+        }
     }
 }

@@ -19,6 +19,9 @@ pub enum Error {
 
     #[error("Tauri 错误: {0}")]
     Tauri(#[from] tauri::Error),
+
+    #[error("全局快捷键错误: {0}")]
+    Shortcut(String),
 }
 
 // 为 Tauri command 跨边界传递实现 Serialize

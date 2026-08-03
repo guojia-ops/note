@@ -10,6 +10,10 @@ pub mod event_name {
     pub const NOTE_PINNED: &str = "note:pinned";
     pub const NOTE_UNPINNED: &str = "note:unpinned";
     pub const CONFIG_UPDATED: &str = "config:updated";
+    /// 托盘/全局快捷键触发「新建便签」→ 主窗口前端监听后调 createNote+pinNote
+    pub const TRAY_NEW_NOTE: &str = "tray:new-note";
+    /// SOP 10.7：落盘失败通知，前端显示 toast
+    pub const STORAGE_ERROR: &str = "storage:error";
 }
 
 /// 事件 payload：携带受影响便签的 id

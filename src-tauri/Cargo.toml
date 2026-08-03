@@ -24,12 +24,8 @@ uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1"
 
-# 后续阶段按需添加：
-# tauri-plugin-autostart = "2"
-# tauri-plugin-global-shortcut = "2"
-# tauri-plugin-dialog = "2"
-# tauri-plugin-fs = "2"
-# tokio = { version = "1", features = ["full"] }
+# 阶段 8 托盘与全局快捷键
+tauri-plugin-global-shortcut = "2"
 
 [dev-dependencies]
 tempfile = "3"

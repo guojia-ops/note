@@ -36,3 +36,8 @@ coverage/
 
 # Tauri dev artifacts
 .TauriDevCache/
+
+# 备份/导出文件（运行时生成，不入库）
+*-backup-*.json
+desknote-backup.json
+src-tauri/desknote-backup-*.json
