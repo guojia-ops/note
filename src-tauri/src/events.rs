@@ -22,7 +22,3 @@ pub mod event_name {
 pub struct NotePayload {
     pub id: String,
 }
-
-/// 配置更新事件无 payload（前端整体重新拉取）
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ConfigPayload;

@@ -20,6 +20,7 @@
     "core:webview:default",
     "core:webview:allow-create-webview-window",
     "core:event:default",
-    "core:app:default"
+    "core:app:default",
+    "autostart:default"
   ]
 }

@@ -2,7 +2,14 @@
   // 设置窗口（SOP 7.3-7.13）
   // 8 项设置：开机自启、全局快捷键、默认颜色、数据目录、自动备份+份数、主题、导出/导入、关闭行为
   import { config, applyTheme } from '../stores/config';
-  import { updateConfig, exportNotes, importNotes, getDataDir, registerHotkey } from '../lib/commands';
+  import {
+    updateConfig,
+    exportNotes,
+    importNotes,
+    getDataDir,
+    registerHotkey,
+    setAutoStart,
+  } from '../lib/commands';
   import { NOTE_COLORS, type Config, type NoteColor, type Theme, type CloseAction } from '../types/note';
 
   // 本地状态：输入中的值，失焦或保存时提交（防抖避免每按一次都发请求）
@@ -76,7 +83,7 @@
 
   // 开关 / 直接提交型
   let savingSwitch = new Set<string>();
-  async function toggleSwitch<K extends keyof Pick<Config, 'auto_start' | 'auto_backup'>>(
+  async function toggleSwitch<K extends keyof Pick<Config, 'auto_backup' | 'always_on_top'>>(
     key: K,
     value: Config[K],
   ) {
@@ -85,6 +92,26 @@
       await updateConfig({ [key]: value } as Partial<Config>);
     } finally {
       savingSwitch.delete(key);
+    }
+  }
+
+  // 开机自启：单独处理，需同时更新 config + 系统注册项（v1.1 优化阶段 3）
+  let autoStartSaving = false;
+  let autoStartMsg = '';
+  async function toggleAutoStart(enabled: boolean) {
+    if (enabled === $config.auto_start) return;
+    try {
+      autoStartSaving = true;
+      autoStartMsg = '';
+      await setAutoStart(enabled);
+      autoStartMsg = enabled ? '已启用开机自启' : '已关闭开机自启';
+    } catch (e) {
+      // 失败时回退开关状态（config store 未更新，UI 会自动回退）
+      autoStartMsg = `设置失败：${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      autoStartSaving = false;
+      // 3 秒后清空提示
+      setTimeout(() => { autoStartMsg = ''; }, 3000);
     }
   }
 
@@ -186,19 +213,19 @@
   <section class="card">
     <h2>通用</h2>
 
-    <!-- 开机自启（SOP 7.4，阶段 8 实现实际注册） -->
+    <!-- 开机自启（v1.1 优化阶段 3：config + 系统注册项同步） -->
     <div class="row">
       <div class="field-info">
         <span class="label">开机自启</span>
-        <span class="desc">登录系统后自动启动 DeskNote</span>
-        <span class="badge warn">阶段 8 实现</span>
+        <span class="desc">登录系统后自动启动 DeskNote{#if autoStartMsg}<span class="inline-msg">{autoStartMsg}</span>{/if}</span>
       </div>
       <label class="switch">
         <input
           type="checkbox"
           checked={$config.auto_start}
-          disabled={savingSwitch.has('auto_start')}
-          on:change={(e) => void toggleSwitch('auto_start', (e.currentTarget as HTMLInputElement).checked)}
+          disabled={autoStartSaving}
+          on:change={(e) =>
+            void toggleAutoStart((e.currentTarget as HTMLInputElement).checked)}
         />
         <span class="slider"></span>
       </label>
@@ -247,6 +274,24 @@
           ></button>
         {/each}
       </div>
+    </div>
+
+    <!-- 便签始终置顶（v1.1 优化阶段 2.1） -->
+    <div class="row">
+      <div class="field-info">
+        <span class="label">便签始终置顶</span>
+        <span class="desc">贴出的便签悬浮在所有窗口前方，关闭后可被其他窗口遮挡</span>
+      </div>
+      <label class="switch">
+        <input
+          type="checkbox"
+          checked={$config.always_on_top ?? true}
+          disabled={savingSwitch.has('always_on_top')}
+          on:change={(e) =>
+            void toggleSwitch('always_on_top', (e.currentTarget as HTMLInputElement).checked)}
+        />
+        <span class="slider"></span>
+      </label>
     </div>
 
     <!-- 数据目录（SOP 7.7） -->
@@ -449,6 +494,12 @@
   .desc {
     font-size: 0.75rem;
     color: var(--fg-tertiary);
+  }
+
+  .inline-msg {
+    margin-left: var(--space-2);
+    color: var(--accent);
+    font-size: 0.72rem;
   }
 
   .badge {

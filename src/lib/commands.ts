@@ -3,6 +3,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { availableMonitors } from '@tauri-apps/api/window';
 import type { Config, ImportResult, Note, NoteColor, UpdateNoteFields } from '../types/note';
 
 /** 创建便签 */
@@ -36,28 +37,72 @@ export function getNotes(): Promise<Note[]> {
 /** 贴出便签（更新 pinned 状态 + 前端创建便签窗口）
  * 窗口创建由前端 WebviewWindow API 完成，因 Rust 侧 WebviewUrl::App
  * 对含 query string 的路径在 Windows 上解析失败（PathBuf 不支持 ?）
+ *
+ * 位置策略：统一使用「全局逻辑坐标」（note.x/y 存的就是逻辑像素），
+ *   WebviewWindow 的 x/y 直接传逻辑坐标即可，Tauri 会处理跨显示器和 DPI。
+ *   若记录了 monitor 且坐标出界，则回退到该显示器的 (100, 100) 位置兜底。
+ *   alwaysOnTop 值从 config 实时读取（Rust get_config 返回），保证与设置一致。
  */
 export async function pinNote(id: string): Promise<void> {
   // 先调 Rust 更新 pinned 状态，返回 note 数据用于设置窗口初始位置尺寸
   const note = await invoke<Note>('pin_note', { id });
+  // 同时获取 config.always_on_top，保证与设置一致
+  let alwaysOnTop = true;
+  try {
+    const cfg = await invoke<Config>('get_config');
+    alwaysOnTop = cfg.always_on_top ?? true;
+  } catch {
+    /* ignore，默认 true */
+  }
 
   // 前端创建便签窗口，用 note 的位置和尺寸恢复
   const label = `note-${id}`;
   const url = `note.html?id=${id}`;
+
+  // 统一用全局逻辑坐标（note.x/y 存的就是逻辑像素）
+  let x = note.x;
+  let y = note.y;
+
+  // monitor 兜底：若记录了显示器，检查当前坐标是否落在所有显示器内，
+  // 若出界则回退到目标显示器的 (100, 100) 逻辑位置，避免跑到屏幕外
+  if (note.monitor) {
+    try {
+      const monitors = await availableMonitors();
+      // 判断 (x, y) 逻辑坐标是否在任一显示器的逻辑矩形内
+      const inAnyMonitor = monitors.some((m) => {
+        const mx = Math.round(m.position.x / m.scaleFactor);
+        const my = Math.round(m.position.y / m.scaleFactor);
+        const mw = Math.round(m.size.width / m.scaleFactor);
+        const mh = Math.round(m.size.height / m.scaleFactor);
+        return x >= mx && x <= mx + mw && y >= my && y <= my + mh;
+      });
+      if (!inAnyMonitor) {
+        const target = monitors.find((m) => (m.name ?? '') === note.monitor) ?? monitors[0];
+        if (target) {
+          const mx = Math.round(target.position.x / target.scaleFactor);
+          const my = Math.round(target.position.y / target.scaleFactor);
+          x = mx + 100;
+          y = my + 100;
+        }
+      }
+    } catch {
+      /* ignore，回退到 note.x/y */
+    }
+  }
 
   const win = new WebviewWindow(label, {
     url,
     title: 'DeskNote',
     decorations: false,
     transparent: true,
-    alwaysOnTop: true,
+    alwaysOnTop,
     skipTaskbar: true,
     resizable: true,
     visible: false, // 延迟显示，等 NoteApp 加载完数据后 show，避免空白闪烁
     width: note.width,
     height: note.height,
-    x: note.x,
-    y: note.y,
+    x,
+    y,
   });
 
   return new Promise((resolve, reject) => {
@@ -105,17 +150,15 @@ export function getDataDir(): Promise<string> {
   return invoke<string>('get_data_dir');
 }
 
-/** 全部收回（SOP 8.11，托盘菜单调用） */
-export function retractAllNotes(): Promise<void> {
-  return invoke<void>('retract_all_notes');
-}
-
-/** 退出应用（SOP 8.12） */
-export function quitApp(): Promise<void> {
-  return invoke<void>('quit_app');
-}
-
 /** 重新注册全局快捷键（SOP 8.9，设置页改快捷键后调用） */
 export function registerHotkey(): Promise<void> {
   return invoke<void>('register_hotkey');
+}
+
+/** 设置开机自启（v1.1 优化阶段 3）
+ * 同时更新 config.auto_start 和系统注册项，保证两者一致
+ * Rust 侧 set_auto_start 会先 update_config 再调 autolaunch.enable/disable
+ */
+export function setAutoStart(enabled: boolean): Promise<void> {
+  return invoke<void>('set_auto_start', { enabled });
 }

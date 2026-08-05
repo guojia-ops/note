@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 /// 便签颜色枚举（6 色板，PRD 9.3）
 /// 持久化为字符串，前端用 CSS 变量映射
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
+/// v2.0：Orange → Cream（奶白便签），serde 兼容旧 "orange" 数据
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum NoteColor {
     #[default]
     Yellow,
@@ -15,20 +15,40 @@ pub enum NoteColor {
     Green,
     Blue,
     Purple,
-    Orange,
+    Cream,
 }
 
-impl NoteColor {
-    /// 前端 CSS 变量值（与 app.css 中 --color-xxx 对应）
-    pub fn as_css_var(&self) -> &'static str {
-        match self {
-            Self::Yellow => "--color-yellow",
-            Self::Pink => "--color-pink",
-            Self::Green => "--color-green",
-            Self::Blue => "--color-blue",
-            Self::Purple => "--color-purple",
-            Self::Orange => "--color-orange",
+impl<'de> Deserialize<'de> for NoteColor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.to_lowercase().as_str() {
+            "yellow" => Ok(NoteColor::Yellow),
+            "pink" => Ok(NoteColor::Pink),
+            "green" => Ok(NoteColor::Green),
+            "blue" => Ok(NoteColor::Blue),
+            "purple" => Ok(NoteColor::Purple),
+            "cream" | "orange" => Ok(NoteColor::Cream),
+            _ => Ok(NoteColor::default()),
         }
+    }
+}
+
+impl Serialize for NoteColor {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(match self {
+            NoteColor::Yellow => "yellow",
+            NoteColor::Pink => "pink",
+            NoteColor::Green => "green",
+            NoteColor::Blue => "blue",
+            NoteColor::Purple => "purple",
+            NoteColor::Cream => "cream",
+        })
     }
 }
 
@@ -57,15 +77,32 @@ pub struct Note {
     pub updated_at: i64,
     /// 是否贴出在桌面（true=窗口存在，false=已收回，PRD 9）
     pub pinned: bool,
+    /// 桌面贴出时的随机微旋转角度（-2.0 ~ 2.0，默认 0.0）
+    /// 仅作用于桌面便签窗口，主窗口卡片墙不旋转
+    /// serde default：旧 data.json 读取时缺失字段默认 0.0
+    #[serde(default)]
+    pub rotation: f32,
+    /// 所属显示器标识（多屏记忆，v1.1 优化阶段 2.3）
+    /// Tauri Monitor.name() 可空，用 String 存；空字符串回退主屏
+    /// serde default：旧 data.json 读取时缺失字段默认 ""
+    #[serde(default)]
+    pub monitor: String,
 }
 
 impl Note {
     /// 创建新便签的工厂方法
     /// 位置默认 (100, 100)，尺寸 240x240，颜色默认黄
+    /// rotation 基于 UUID 字节生成 -0.8..=0.8 随机角度（不引入 rand 依赖）
     pub fn new() -> Self {
         let now = chrono::Utc::now().timestamp_millis();
+        let uuid = Uuid::new_v4();
+        let rotation = {
+            let b = uuid.as_bytes();
+            let n = u32::from_be_bytes([b[0], b[1], b[2], b[3]]);
+            ((n % 1601) as f32) / 1000.0 - 0.8
+        };
         Self {
-            id: Uuid::new_v4().to_string(),
+            id: uuid.to_string(),
             title: String::new(),
             content: String::new(),
             color: NoteColor::default(),
@@ -76,18 +113,14 @@ impl Note {
             created_at: now,
             updated_at: now,
             pinned: false,
+            rotation,
+            monitor: String::new(),
         }
     }
 
     /// 更新时间戳（每次修改时调用）
     pub fn touch(&mut self) {
         self.updated_at = chrono::Utc::now().timestamp_millis();
-    }
-}
-
-impl Default for Note {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -130,6 +163,15 @@ pub struct Config {
     pub theme: Theme,
     /// 关闭主窗口行为（PRD 12）
     pub close_action: CloseAction,
+    /// 便签始终置顶（v1.1 优化阶段 2.1，默认 true）
+    /// serde default = true：旧 config.json 缺省保持原行为（始终置顶）
+    #[serde(default = "default_true")]
+    pub always_on_top: bool,
+}
+
+/// serde default helper：布尔字段缺省为 true
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Config {
@@ -142,6 +184,7 @@ impl Default for Config {
             backup_keep: 5,
             theme: Theme::default(),
             close_action: CloseAction::default(),
+            always_on_top: true,
         }
     }
 }
@@ -192,6 +235,18 @@ mod tests {
         );
         let c: NoteColor = serde_json::from_str("\"pink\"").unwrap();
         assert_eq!(c, NoteColor::Pink);
+    }
+
+    #[test]
+    fn color_orange_backcompat() {
+        // 旧 data.json 中 "orange" 反序列化为 Cream
+        let c: NoteColor = serde_json::from_str("\"orange\"").unwrap();
+        assert_eq!(c, NoteColor::Cream);
+        // 序列化后输出 "cream"
+        assert_eq!(
+            serde_json::to_string(&NoteColor::Cream).unwrap(),
+            "\"cream\""
+        );
     }
 
     #[test]

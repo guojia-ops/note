@@ -17,11 +17,11 @@ pub enum Error {
     #[error("便签不存在: {0}")]
     NotFound(String),
 
-    #[error("Tauri 错误: {0}")]
-    Tauri(#[from] tauri::Error),
-
     #[error("全局快捷键错误: {0}")]
     Shortcut(String),
+
+    #[error("开机自启错误: {0}")]
+    Autostart(String),
 }
 
 // 为 Tauri command 跨边界传递实现 Serialize

@@ -20,11 +20,6 @@ interface NotePayload {
   id: string;
 }
 
-/** 订阅 note:created */
-export function onNoteCreated(cb: (id: string) => void): Promise<UnlistenFn> {
-  return listen<NotePayload>(EVENT.NOTE_CREATED, (e) => cb(e.payload.id));
-}
-
 /** 订阅 note:updated */
 export function onNoteUpdated(cb: (id: string) => void): Promise<UnlistenFn> {
   return listen<NotePayload>(EVENT.NOTE_UPDATED, (e) => cb(e.payload.id));
@@ -33,11 +28,6 @@ export function onNoteUpdated(cb: (id: string) => void): Promise<UnlistenFn> {
 /** 订阅 note:deleted */
 export function onNoteDeleted(cb: (id: string) => void): Promise<UnlistenFn> {
   return listen<NotePayload>(EVENT.NOTE_DELETED, (e) => cb(e.payload.id));
-}
-
-/** 订阅 note:pinned */
-export function onNotePinned(cb: (id: string) => void): Promise<UnlistenFn> {
-  return listen<NotePayload>(EVENT.NOTE_PINNED, (e) => cb(e.payload.id));
 }
 
 /** 订阅 note:unpinned */

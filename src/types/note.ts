@@ -2,7 +2,7 @@
 // 与 Rust 侧 types.rs 对齐（serde 序列化后的 JSON 形态）
 
 /** 便签颜色（6 色板，PRD 9.3） */
-export type NoteColor = 'yellow' | 'pink' | 'green' | 'blue' | 'purple' | 'orange';
+export type NoteColor = 'yellow' | 'pink' | 'green' | 'blue' | 'purple' | 'cream';
 
 /** 主题（PRD 设置项 7） */
 export type Theme = 'light' | 'dark' | 'system';
@@ -23,6 +23,13 @@ export interface Note {
   created_at: number;
   updated_at: number;
   pinned: boolean;
+  /** 桌面贴出时的随机微旋转角度（-2.0 ~ 2.0，默认 0.0）
+   *  仅作用于桌面便签窗口，主窗口卡片墙不旋转
+   *  旧 data.json 缺失该字段时由 Rust serde default 补 0 */
+  rotation?: number;
+  /** 所属显示器标识（多屏记忆），空字符串回退主屏
+   *  旧 data.json 缺失该字段时由 Rust serde default 补 "" */
+  monitor?: string;
 }
 
 /** 应用配置（对应 Rust Config） */
@@ -34,6 +41,9 @@ export interface Config {
   backup_keep: number;
   theme: Theme;
   close_action: CloseAction;
+  /** 便签始终置顶开关
+   *  旧 config.json 缺失时由 Rust serde default 补 true */
+  always_on_top?: boolean;
 }
 
 /** 更新便签的部分字段（对应 Rust UpdateNoteFields） */
@@ -45,6 +55,8 @@ export interface UpdateNoteFields {
   height?: number;
   x?: number;
   y?: number;
+  /** 所属显示器标识（多屏记忆） */
+  monitor?: string;
 }
 
 /** 导入结果（对应 Rust ImportResult） */
@@ -60,15 +72,5 @@ export const NOTE_COLORS: NoteColor[] = [
   'green',
   'blue',
   'purple',
-  'orange',
+  'cream',
 ];
-
-/** 颜色 → CSS 变量名映射 */
-export const COLOR_TO_CSS_VAR: Record<NoteColor, string> = {
-  yellow: '--color-yellow',
-  pink: '--color-pink',
-  green: '--color-green',
-  blue: '--color-blue',
-  purple: '--color-purple',
-  orange: '--color-orange',
-};

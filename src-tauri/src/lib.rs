@@ -19,6 +19,7 @@ use tauri::{
     Emitter, Manager, WindowEvent,
 };
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_autostart::ManagerExt;
 use types::CloseAction;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -34,6 +35,12 @@ pub fn run() {
                 })
                 .build(),
         )
+        // 开机自启插件（v1.1 优化阶段 3）
+        // MacosLauncher::LaunchAgent 用于 macOS，Windows/Linux 自动选择注册表/桌面文件
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         // SOP 8.10：主窗口关闭行为拦截
         .on_window_event(|window, event| {
             if window.label() == "main" {
@@ -82,11 +89,28 @@ pub fn run() {
 
             // SOP 8.7：启动时从 config 读取快捷键并注册
             let hotkey = state.get_config().hotkey.clone();
+            // v1.1 优化阶段 3：启动时同步开机自启状态
+            // config.auto_start 为 SOT，但用户可能在系统设置中手动改过，这里以 config 为准强制同步
+            let auto_start = state.get_config().auto_start;
+
             app.manage(state);
             if let Err(e) = app.global_shortcut().register(hotkey.as_str()) {
                 eprintln!("[DeskNote] 全局快捷键注册失败 '{}': {}", hotkey, e);
             } else {
                 println!("[DeskNote] 全局快捷键已注册: {}", hotkey);
+            }
+
+            // 同步开机自启：config 开启则 enable，关闭则 disable
+            let autolaunch = app.autolaunch();
+            let current_enabled = autolaunch.is_enabled().unwrap_or(false);
+            if auto_start && !current_enabled {
+                if let Err(e) = autolaunch.enable() {
+                    eprintln!("[DeskNote] 开机自启启用失败: {}", e);
+                }
+            } else if !auto_start && current_enabled {
+                if let Err(e) = autolaunch.disable() {
+                    eprintln!("[DeskNote] 开机自启关闭失败: {}", e);
+                }
             }
 
             // SOP 8.2-8.5：托盘图标 + 四项菜单
@@ -165,6 +189,7 @@ pub fn run() {
             commands::retract_all_notes,
             commands::quit_app,
             commands::register_hotkey,
+            commands::set_auto_start,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -15,6 +15,7 @@ const DEFAULT_CONFIG: Config = {
   backup_keep: 5,
   theme: 'system',
   close_action: 'tray',
+  always_on_top: true,
 };
 
 export const config = writable<Config>(DEFAULT_CONFIG);

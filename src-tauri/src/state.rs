@@ -18,6 +18,8 @@ pub struct UpdateNoteFields {
     pub height: Option<u32>,
     pub x: Option<i32>,
     pub y: Option<i32>,
+    /// v1.1 优化阶段 2.3：所属显示器标识（多屏记忆）
+    pub monitor: Option<String>,
 }
 
 /// 导入结果
@@ -56,18 +58,6 @@ impl AppState {
     /// 获取所有便签的快照
     pub fn list_notes(&self) -> Vec<Note> {
         self.data.lock().unwrap().notes.clone()
-    }
-
-    /// 获取单个便签
-    pub fn get_note(&self, id: &str) -> Result<Note> {
-        self.data
-            .lock()
-            .unwrap()
-            .notes
-            .iter()
-            .find(|n| n.id == id)
-            .cloned()
-            .ok_or_else(|| Error::NotFound(id.to_string()))
     }
 
     /// 创建便签
@@ -115,6 +105,9 @@ impl AppState {
         }
         if let Some(y) = fields.y {
             note.y = y;
+        }
+        if let Some(ref m) = fields.monitor {
+            note.monitor = m.clone();
         }
         note.touch();
 
@@ -279,6 +272,7 @@ mod tests {
             height: None,
             x: Some(200),
             y: None,
+            monitor: None,
         };
         let updated = state.update_note(&note.id, &fields).unwrap();
         assert_eq!(updated.title, "New");
@@ -299,6 +293,7 @@ mod tests {
             height: None,
             x: None,
             y: None,
+            monitor: None,
         };
         assert!(state.update_note("nonexistent", &fields).is_err());
     }

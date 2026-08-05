@@ -8,6 +8,7 @@ use crate::types::{Config, Note, NoteColor};
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
+use tauri_plugin_autostart::ManagerExt;
 
 /// SOP 10.7：落盘失败时 emit storage:error 事件，前端显示 toast
 /// 命令层调用：state 写操作返回 Err 时，emit 事件后返回错误
@@ -212,5 +213,37 @@ pub fn register_hotkey(app: AppHandle, state: State<AppState>) -> Result<()> {
     app.global_shortcut()
         .register(hotkey.as_str())
         .map_err(|e| Error::Shortcut(format!("注册快捷键 '{}' 失败: {}", hotkey, e)))?;
+    Ok(())
+}
+
+/// 设置开机自启（v1.1 优化阶段 3）
+/// 同时更新 config.auto_start（SOT）和系统注册项，保证两者一致
+/// enabled=true 调 autolaunch.enable()，false 调 autolaunch.disable()
+#[tauri::command]
+pub fn set_auto_start(
+    app: AppHandle,
+    state: State<AppState>,
+    enabled: bool,
+) -> Result<()> {
+    // 先更新 config（SOT），失败则 emit storage:error
+    match state.update_config(serde_json::json!({ "auto_start": enabled })) {
+        Ok(_) => {}
+        Err(e) => {
+            emit_storage_error(&app, &e);
+            return Err(e);
+        }
+    }
+
+    // 再同步系统注册项
+    let autolaunch = app.autolaunch();
+    if enabled {
+        autolaunch
+            .enable()
+            .map_err(|e| Error::Autostart(format!("启用开机自启失败: {}", e)))?;
+    } else {
+        autolaunch
+            .disable()
+            .map_err(|e| Error::Autostart(format!("关闭开机自启失败: {}", e)))?;
+    }
     Ok(())
 }

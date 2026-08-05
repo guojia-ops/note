@@ -27,6 +27,9 @@ thiserror = "1"
 # 阶段 8 托盘与全局快捷键
 tauri-plugin-global-shortcut = "2"
 
+# 开机自启（v1.1 优化阶段 3）
+tauri-plugin-autostart = "2"
+
 [dev-dependencies]
 tempfile = "3"
 

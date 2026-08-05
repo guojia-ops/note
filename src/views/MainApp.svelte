@@ -4,7 +4,7 @@
   // 阶段 8：监听托盘/全局快捷键的 tray:new-note 事件
   import { onMount, onDestroy } from 'svelte';
   import { notes, notesLoading } from '../stores/notes';
-  import { createNote, pinNote, unpinNote, deleteNote, updateNote } from '../lib/commands';
+  import { createNote, pinNote, unpinNote, deleteNote, updateNote, getNotes } from '../lib/commands';
   import { onTrayNewNote, onStorageError } from '../lib/events';
   import NoteCard from '../components/NoteCard.svelte';
   import NoteEditModal from '../components/NoteEditModal.svelte';
@@ -152,6 +152,7 @@
 
   // SOP 8.8：监听托盘菜单/全局快捷键触发的「新建便签」事件
   // SOP 10.7：监听 storage:error 事件，显示 toast
+  // 应用重启后恢复已贴出的便签窗口
   onMount(async () => {
     try {
       trayUnlistens.push(
@@ -166,6 +167,23 @@
       trayUnlistens.push(await onStorageError(showStorageError));
     } catch (e) {
       console.error('[DeskNote] storage:error 监听注册失败', e);
+    }
+
+    // 恢复已贴出的便签窗口：应用重启后，pinned=true 的便签需要重新创建窗口
+    try {
+      const list = await getNotes();
+      const pinnedNotes = list.filter((n) => n.pinned);
+      if (pinnedNotes.length > 0) {
+        await Promise.all(
+          pinnedNotes.map((n) =>
+            pinNote(n.id).catch((e) =>
+              console.error(`[DeskNote] 恢复便签 ${n.id} 失败`, e),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      console.error('[DeskNote] 恢复便签失败', e);
     }
   });
 

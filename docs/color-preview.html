@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeskNote 拟物化配色预览</title>
+  <style>
+    /* ========== 设计规范 CSS 变量 ========== */
+    :root {
+      /* 全局中性色 */
+      --bg-page: #F5F3EE;
+      --bg-card: #FFFFFF;
+      --bg-input: #FBF9F3;
+      --bg-secondary: #F0EDE5;
+      --bg-tertiary: #E8E5DD;
+      --border-primary: #E8E5DD;
+      --border-secondary: #F0EDE5;
+      --text-primary: #2D2D2D;
+      --text-secondary: #6B6B6B;
+      --text-muted: #9A9A9A;
+      --primary: #F5A623;
+      --primary-hover: #FFB74D;
+      --primary-active: #E89512;
+
+      /* 经典鹅黄 */
+      --color-yellow: #FFF4C2;
+      --color-yellow-tape: #F0D97D;
+      --color-yellow-title: #5A4A1F;
+      --color-yellow-content: #6B5A2B;
+      --color-yellow-fold: #E8D27A;
+
+      /* 樱花粉 */
+      --color-pink: #FFE6E6;
+      --color-pink-tape: #F5C2C2;
+      --color-pink-title: #5C2B2B;
+      --color-pink-content: #703A3A;
+      --color-pink-fold: #EFC0C0;
+
+      /* 薄荷绿 */
+      --color-green: #E8F5E0;
+      --color-green-tape: #BED9A8;
+      --color-green-title: #2F4A23;
+      --color-green-content: #3E5C30;
+      --color-green-fold: #B8D4A3;
+
+      /* 晴空蓝 */
+      --color-blue: #E3F0FC;
+      --color-blue-tape: #A9CBEE;
+      --color-blue-title: #1F3D5C;
+      --color-blue-content: #2C4E73;
+      --color-blue-fold: #A0C4E8;
+
+      /* 芋泥紫 */
+      --color-purple: #F1E8F7;
+      --color-purple-tape: #D4BEE4;
+      --color-purple-title: #432C5A;
+      --color-purple-content: #543B6E;
+      --color-purple-fold: #CCB5DD;
+
+      /* 奶白便签 */
+      --color-cream: #FBF9F3;
+      --color-cream-tape: #E8E2D3;
+      --color-cream-title: #3A3A3A;
+      --color-cream-content: #4F4F4F;
+      --color-cream-fold: #E0D9C9;
+
+      /* 阴影系统 */
+      --shadow-card: 0 2px 6px rgba(0, 0, 0, 0.06);
+      --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+      --shadow-strong: 0 4px 16px rgba(0, 0, 0, 0.12);
+      --shadow-paper-lifted: 0 4px 8px rgba(0, 0, 0, 0.12), 0 16px 40px rgba(0, 0, 0, 0.12);
+
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
+    }
+
+    /* ========== 基础重置 ========== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+      padding: 40px 24px 80px;
+    }
+
+    /* ========== 页面头部 ========== */
+    .page-header {
+      max-width: 1200px;
+      margin: 0 auto 48px;
+      text-align: center;
+    }
+
+    .page-header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .page-header p {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+      padding-left: 12px;
+      border-left: 3px solid var(--primary);
+    }
+
+    /* ========== Section 1: 桌面便签窗口预览 ========== */
+    .section {
+      max-width: 1200px;
+      margin: 0 auto 56px;
+    }
+
+    .notes-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+      justify-content: center;
+    }
+
+    /* 便签窗口容器（模拟桌面便签） */
+    .note-window {
+      position: relative;
+      width: 240px;
+      height: 240px;
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: visible;
+      /* 双层阴影：近影 + 远影 */
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 8px 24px rgba(0, 0, 0, 0.12),
+        0 2px 6px rgba(0, 0, 0, 0.08);
+      /* 纸张肌理：极淡交叉线纹 */
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent 0px,
+          transparent 2px,
+          rgba(180, 170, 150, 0.03) 2px,
+          rgba(180, 170, 150, 0.03) 3px
+        ),
+        repeating-linear-gradient(
+          90deg,
+          transparent 0px,
+          transparent 2px,
+          rgba(180, 170, 150, 0.03) 2px,
+          rgba(180, 170, 150, 0.03) 3px
+        );
+      transition: box-shadow 200ms ease, transform 200ms ease;
+    }
+
+    .note-window:hover {
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.3),
+        0 12px 32px rgba(0, 0, 0, 0.15),
+        0 4px 8px rgba(0, 0, 0, 0.10);
+      transform: translateY(-2px);
+    }
+
+    /* 颜色应用：通过 data-color 属性 */
+    .note-window[data-color="yellow"] {
+      background-color: var(--color-yellow);
+      --note-tape: var(--color-yellow-tape);
+      --note-title: var(--color-yellow-title);
+      --note-content: var(--color-yellow-content);
+      --note-fold: var(--color-yellow-fold);
+    }
+    .note-window[data-color="pink"] {
+      background-color: var(--color-pink);
+      --note-tape: var(--color-pink-tape);
+      --note-title: var(--color-pink-title);
+      --note-content: var(--color-pink-content);
+      --note-fold: var(--color-pink-fold);
+    }
+    .note-window[data-color="green"] {
+      background-color: var(--color-green);
+      --note-tape: var(--color-green-tape);
+      --note-title: var(--color-green-title);
+      --note-content: var(--color-green-content);
+      --note-fold: var(--color-green-fold);
+    }
+    .note-window[data-color="blue"] {
+      background-color: var(--color-blue);
+      --note-tape: var(--color-blue-tape);
+      --note-title: var(--color-blue-title);
+      --note-content: var(--color-blue-content);
+      --note-fold: var(--color-blue-fold);
+    }
+    .note-window[data-color="purple"] {
+      background-color: var(--color-purple);
+      --note-tape: var(--color-purple-tape);
+      --note-title: var(--color-purple-title);
+      --note-content: var(--color-purple-content);
+      --note-fold: var(--color-purple-fold);
+    }
+    .note-window[data-color="cream"] {
+      background-color: var(--color-cream);
+      --note-tape: var(--color-cream-tape);
+      --note-title: var(--color-cream-title);
+      --note-content: var(--color-cream-content);
+      --note-fold: var(--color-cream-fold);
+    }
+
+    /* 顶部胶条 */
+    .note-tape-bar {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 6px;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      background: linear-gradient(
+        180deg,
+        var(--note-tape) 0%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+      flex-shrink: 0;
+    }
+
+    .note-tape-bar .grip {
+      font-size: 0.7rem;
+      letter-spacing: -2px;
+      color: var(--note-title);
+      opacity: 0.4;
+    }
+
+    .note-tape-bar .title {
+      flex: 1;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--note-title);
+      padding: 0 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .note-tape-bar .close {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: var(--note-title);
+      opacity: 0.4;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      transition: opacity 150ms ease, background 150ms ease;
+    }
+
+    .note-window:hover .note-tape-bar .close,
+    .note-window:hover .note-tape-bar .grip {
+      opacity: 0.7;
+    }
+
+    .note-tape-bar .close:hover {
+      opacity: 1;
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    /* 正文区域 */
+    .note-body {
+      flex: 1;
+      padding: 12px 14px;
+      overflow: hidden;
+      font-size: 0.875rem;
+      line-height: 1.7;
+      letter-spacing: 0.01em;
+      color: var(--note-content);
+    }
+
+    .note-body p {
+      margin-bottom: 6px;
+    }
+
+    /* 右下角卷角：clip-path 三角形 + 背面透出 */
+    .note-window::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 20px;
+      height: 20px;
+      clip-path: polygon(100% 0, 100% 100%, 0 100%);
+      background: var(--note-fold);
+      box-shadow: -2px -2px 4px rgba(0, 0, 0, 0.08);
+      border-bottom-right-radius: var(--radius-lg);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* 卷角下方径向阴影 */
+    .note-window::before {
+      content: '';
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 22px;
+      height: 22px;
+      background: radial-gradient(
+        circle at 100% 100%,
+        rgba(0, 0, 0, 0.08) 0%,
+        transparent 70%
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* 底部色板 */
+    .note-palette {
+      display: flex;
+      gap: 4px;
+      padding: 0 12px 8px;
+      flex-shrink: 0;
+    }
+
+    .note-palette .swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 150ms ease;
+    }
+
+    .note-palette .swatch:hover {
+      transform: scale(1.15);
+    }
+
+    .note-palette .swatch.active {
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+    }
+
+    /* 便签标签 */
+    .note-label {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .note-label .hex {
+      font-family: 'Cascadia Code', Consolas, monospace;
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+    }
+
+    /* ========== Section 2: 主窗口卡片墙预览 ========== */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      aspect-ratio: 4 / 3;
+      background: var(--bg-card);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: var(--shadow-card);
+      transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease;
+    }
+
+    .card:hover {
+      box-shadow:
+        0 4px 12px rgba(0, 0, 0, 0.08),
+        0 1px 3px rgba(0, 0, 0, 0.04);
+      transform: translateY(-3px);
+      border-color: var(--border-secondary);
+    }
+
+    /* 卡片色条 → 胶条质感 */
+    .card .color-bar {
+      height: 8px;
+      flex-shrink: 0;
+    }
+
+    .card[data-color="yellow"] .color-bar {
+      background: linear-gradient(180deg, var(--color-yellow-tape) 0%, var(--color-yellow) 100%);
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .card[data-color="pink"] .color-bar {
+      background: linear-gradient(180deg, var(--color-pink-tape) 0%, var(--color-pink) 100%);
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .card[data-color="green"] .color-bar {
+      background: linear-gradient(180deg, var(--color-green-tape) 0%, var(--color-green) 100%);
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .card[data-color="blue"] .color-bar {
+      background: linear-gradient(180deg, var(--color-blue-tape) 0%, var(--color-blue) 100%);
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .card[data-color="purple"] .color-bar {
+      background: linear-gradient(180deg, var(--color-purple-tape) 0%, var(--color-purple) 100%);
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+    .card[data-color="cream"] .color-bar {
+      background: linear-gradient(180deg, var(--color-cream-tape) 0%, var(--color-cream) 100%);
+      border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .card .card-body {
+      flex: 1;
+      padding: 8px 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .card .card-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card[data-color="yellow"] .card-title { color: var(--color-yellow-title); }
+    .card[data-color="pink"]   .card-title { color: var(--color-pink-title); }
+    .card[data-color="green"]  .card-title { color: var(--color-green-title); }
+    .card[data-color="blue"]   .card-title { color: var(--color-blue-title); }
+    .card[data-color="purple"] .card-title { color: var(--color-purple-title); }
+    .card[data-color="cream"]  .card-title { color: var(--color-cream-title); }
+
+    .card .card-content {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      -webkit-mask-image: linear-gradient(180deg, #000 75%, transparent 100%);
+      mask-image: linear-gradient(180deg, #000 75%, transparent 100%);
+    }
+
+    .card .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 12px 8px;
+      flex-shrink: 0;
+    }
+
+    .card .card-time {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .card .pinned-tag {
+      font-size: 0.65rem;
+      padding: 1px 6px;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+    }
+
+    .card[data-color="yellow"] .pinned-tag { background: var(--color-yellow-tape); color: var(--color-yellow-title); }
+    .card[data-color="pink"]   .pinned-tag { background: var(--color-pink-tape); color: var(--color-pink-title); }
+    .card[data-color="green"]  .pinned-tag { background: var(--color-green-tape); color: var(--color-green-title); }
+    .card[data-color="blue"]   .pinned-tag { background: var(--color-blue-tape); color: var(--color-blue-title); }
+    .card[data-color="purple"] .pinned-tag { background: var(--color-purple-tape); color: var(--color-purple-title); }
+    .card[data-color="cream"]  .pinned-tag { background: var(--color-cream-tape); color: var(--color-cream-title); }
+
+    /* ========== Section 3: 全局色板对照 ========== */
+    .color-swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .swatch-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+    }
+
+    .swatch-card .preview {
+      display: flex;
+      height: 80px;
+    }
+
+    .swatch-card .preview .layer {
+      flex: 1;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 6px;
+      font-size: 0.6rem;
+      font-family: 'Cascadia Code', Consolas, monospace;
+      color: rgba(0,0,0,0.4);
+    }
+
+    .swatch-card .info {
+      padding: 12px 14px;
+    }
+
+    .swatch-card .info h4 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .swatch-card .info .row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      padding: 3px 0;
+      color: var(--text-secondary);
+    }
+
+    .swatch-card .info .row .val {
+      font-family: 'Cascadia Code', Consolas, monospace;
+      color: var(--text-primary);
+    }
+
+    /* ========== Section 4: 控件预览 ========== */
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      background: var(--bg-card);
+      padding: 24px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-primary);
+      box-shadow: var(--shadow-card);
+    }
+
+    .controls-row .group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .controls-row .label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* 主按钮微立体 */
+    .btn-primary {
+      padding: 8px 16px;
+      font-size: 0.875rem;
+      border: 1px solid var(--primary);
+      border-radius: var(--radius-md);
+      background: linear-gradient(180deg, var(--primary-hover) 0%, var(--primary) 100%);
+      color: #FFFFFF;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+      transition: all 150ms ease;
+    }
+    .btn-primary:hover {
+      background: linear-gradient(180deg, #FFC966 0%, var(--primary-hover) 100%);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.10);
+    }
+    .btn-primary:active {
+      background: var(--primary-active);
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.12);
+      transform: translateY(1px);
+    }
+
+    /* 次要按钮 */
+    .btn-secondary {
+      padding: 8px 16px;
+      font-size: 0.875rem;
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 150ms ease;
+    }
+    .btn-secondary:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--border-secondary);
+    }
+
+    /* 输入框 */
+    .input-field {
+      padding: 8px 12px;
+      font-size: 0.875rem;
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      width: 200px;
+      transition: border-color 150ms ease;
+    }
+    .input-field::placeholder {
+      color: var(--text-muted);
+    }
+    .input-field:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    /* ========== Section 5: 阴影对照 ========== */
+    .shadow-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+    }
+
+    .shadow-item {
+      text-align: center;
+    }
+
+    .shadow-box {
+      width: 100px;
+      height: 100px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-primary);
+      margin-bottom: 12px;
+    }
+
+    .shadow-box.card-shadow { box-shadow: var(--shadow-card); }
+    .shadow-box.float-shadow { box-shadow: var(--shadow-float); }
+    .shadow-box.strong-shadow { box-shadow: var(--shadow-strong); }
+    .shadow-box.lifted-shadow { box-shadow: var(--shadow-paper-lifted); }
+
+    .shadow-item .name {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .shadow-item .desc {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-family: 'Cascadia Code', Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 页面标题 -->
+  <header class="page-header">
+    <h1>DeskNote 拟物化配色预览</h1>
+    <p>基于真实感设计规范 · 6 色板 × 5 层级 × 拟物光影</p>
+  </header>
+
+  <!-- Section 1: 桌面便签窗口 -->
+  <section class="section">
+    <h2 class="section-title">桌面便签窗口（完整拟物效果）</h2>
+    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 24px; padding-left: 12px;">
+      胶条渐变 · 文字专属色 · 卷角背面透出 · 纸张肌理 · 顶部高光 · 双层投影
+    </p>
+    <div class="notes-row">
+
+      <!-- 鹅黄 -->
+      <div>
+        <div class="note-window" data-color="yellow">
+          <div class="note-tape-bar">
+            <span class="grip">⋮⋮</span>
+            <span class="title">周一晨会纪要</span>
+            <span class="close">×</span>
+          </div>
+          <div class="note-body">
+            <p>9:30 产品评审</p>
+            <p>10:30 设计走查</p>
+            <p>14:00 迭代计划</p>
+          </div>
+          <div class="note-palette">
+            <span class="swatch active" style="background: var(--color-yellow);"></span>
+            <span class="swatch" style="background: var(--color-pink);"></span>
+            <span class="swatch" style="background: var(--color-green);"></span>
+            <span class="swatch" style="background: var(--color-blue);"></span>
+            <span class="swatch" style="background: var(--color-purple);"></span>
+            <span class="swatch" style="background: var(--color-cream);"></span>
+          </div>
+        </div>
+        <div class="note-label">经典鹅黄 <span class="hex">#FFF4C2</span></div>
+      </div>
+
+      <!-- 樱花粉 -->
+      <div>
+        <div class="note-window" data-color="pink">
+          <div class="note-tape-bar">
+            <span class="grip">⋮⋮</span>
+            <span class="title">购物清单</span>
+            <span class="close">×</span>
+          </div>
+          <div class="note-body">
+            <p>牛奶 × 2 盒</p>
+            <p>全麦面包</p>
+            <p>草莓蛋糕</p>
+          </div>
+          <div class="note-palette">
+            <span class="swatch" style="background: var(--color-yellow);"></span>
+            <span class="swatch active" style="background: var(--color-pink);"></span>
+            <span class="swatch" style="background: var(--color-green);"></span>
+            <span class="swatch" style="background: var(--color-blue);"></span>
+            <span class="swatch" style="background: var(--color-purple);"></span>
+            <span class="swatch" style="background: var(--color-cream);"></span>
+          </div>
+        </div>
+        <div class="note-label">樱花粉 <span class="hex">#FFE6E6</span></div>
+      </div>
+
+      <!-- 薄荷绿 -->
+      <div>
+        <div class="note-window" data-color="green">
+          <div class="note-tape-bar">
+            <span class="grip">⋮⋮</span>
+            <span class="title">学习笔记</span>
+            <span class="close">×</span>
+          </div>
+          <div class="note-body">
+            <p>Rust 所有权模型</p>
+            <p>生命周期标注</p>
+            <p>智能指针 Box/Rc</p>
+          </div>
+          <div class="note-palette">
+            <span class="swatch" style="background: var(--color-yellow);"></span>
+            <span class="swatch" style="background: var(--color-pink);"></span>
+            <span class="swatch active" style="background: var(--color-green);"></span>
+            <span class="swatch" style="background: var(--color-blue);"></span>
+            <span class="swatch" style="background: var(--color-purple);"></span>
+            <span class="swatch" style="background: var(--color-cream);"></span>
+          </div>
+        </div>
+        <div class="note-label">薄荷绿 <span class="hex">#E8F5E0</span></div>
+      </div>
+
+      <!-- 晴空蓝 -->
+      <div>
+        <div class="note-window" data-color="blue">
+          <div class="note-tape-bar">
+            <span class="grip">⋮⋮</span>
+            <span class="title">项目里程碑</span>
+            <span class="close">×</span>
+          </div>
+          <div class="note-body">
+            <p>v1.2 功能冻结</p>
+            <p>周五灰度发布</p>
+            <p>下周一全量</p>
+          </div>
+          <div class="note-palette">
+            <span class="swatch" style="background: var(--color-yellow);"></span>
+            <span class="swatch" style="background: var(--color-pink);"></span>
+            <span class="swatch" style="background: var(--color-green);"></span>
+            <span class="swatch active" style="background: var(--color-blue);"></span>
+            <span class="swatch" style="background: var(--color-purple);"></span>
+            <span class="swatch" style="background: var(--color-cream);"></span>
+          </div>
+        </div>
+        <div class="note-label">晴空蓝 <span class="hex">#E3F0FC</span></div>
+      </div>
+
+      <!-- 芋泥紫 -->
+      <div>
+        <div class="note-window" data-color="purple">
+          <div class="note-tape-bar">
+            <span class="grip">⋮⋮</span>
+            <span class="title">灵感记录</span>
+            <span class="close">×</span>
+          </div>
+          <div class="note-body">
+            <p>拟物化 UI = 真实感</p>
+            <p>纸张肌理 3% 透明度</p>
+            <p>卷角 clip-path 方案</p>
+          </div>
+          <div class="note-palette">
+            <span class="swatch" style="background: var(--color-yellow);"></span>
+            <span class="swatch" style="background: var(--color-pink);"></span>
+            <span class="swatch" style="background: var(--color-green);"></span>
+            <span class="swatch" style="background: var(--color-blue);"></span>
+            <span class="swatch active" style="background: var(--color-purple);"></span>
+            <span class="swatch" style="background: var(--color-cream);"></span>
+          </div>
+        </div>
+        <div class="note-label">芋泥紫 <span class="hex">#F1E8F7</span></div>
+      </div>
+
+      <!-- 奶白 -->
+      <div>
+        <div class="note-window" data-color="cream">
+          <div class="note-tape-bar">
+            <span class="grip">⋮⋮</span>
+            <span class="title">读书摘录</span>
+            <span class="close">×</span>
+          </div>
+          <div class="note-body">
+            <p>「好的设计是尽可能少的设计」</p>
+            <p>—— Dieter Rams</p>
+          </div>
+          <div class="note-palette">
+            <span class="swatch" style="background: var(--color-yellow);"></span>
+            <span class="swatch" style="background: var(--color-pink);"></span>
+            <span class="swatch" style="background: var(--color-green);"></span>
+            <span class="swatch" style="background: var(--color-blue);"></span>
+            <span class="swatch" style="background: var(--color-purple);"></span>
+            <span class="swatch active" style="background: var(--color-cream);"></span>
+          </div>
+        </div>
+        <div class="note-label">奶白便签 <span class="hex">#FBF9F3</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Section 2: 主窗口卡片墙 -->
+  <section class="section">
+    <h2 class="section-title">主窗口卡片墙（胶条色条 + 专属标题色）</h2>
+    <div class="card-grid">
+
+      <div class="card" data-color="yellow">
+        <div class="color-bar"></div>
+        <div class="card-body">
+          <h3 class="card-title">周一晨会纪要</h3>
+          <p class="card-content">9:30 产品评审，10:30 设计走查，14:00 迭代计划会议</p>
+        </div>
+        <div class="card-footer">
+          <span class="card-time">3 分钟前</span>
+          <span class="pinned-tag">已贴出</span>
+        </div>
+      </div>
+
+      <div class="card" data-color="pink">
+        <div class="color-bar"></div>
+        <div class="card-body">
+          <h3 class="card-title">购物清单</h3>
+          <p class="card-content">牛奶、全麦面包、草莓蛋糕、咖啡豆、水果</p>
+        </div>
+        <div class="card-footer">
+          <span class="card-time">1 小时前</span>
+        </div>
+      </div>
+
+      <div class="card" data-color="green">
+        <div class="color-bar"></div>
+        <div class="card-body">
+          <h3 class="card-title">Rust 学习笔记</h3>
+          <p class="card-content">所有权模型：每个值有唯一所有者，作用域结束自动释放</p>
+        </div>
+        <div class="card-footer">
+          <span class="card-time">昨天</span>
+          <span class="pinned-tag">已贴出</span>
+        </div>
+      </div>
+
+      <div class="card" data-color="blue">
+        <div class="color-bar"></div>
+        <div class="card-body">
+          <h3 class="card-title">项目里程碑</h3>
+          <p class="card-content">v1.2 功能冻结 → 周五灰度 → 下周一全量发布</p>
+        </div>
+        <div class="card-footer">
+          <span class="card-time">2 天前</span>
+        </div>
+      </div>
+
+      <div class="card" data-color="purple">
+        <div class="color-bar"></div>
+        <div class="card-body">
+          <h3 class="card-title">灵感记录</h3>
+          <p class="card-content">拟物化 UI 的核心：材质感 + 光影层次 + 物理反馈</p>
+        </div>
+        <div class="card-footer">
+          <span class="card-time">3 天前</span>
+        </div>
+      </div>
+
+      <div class="card" data-color="cream">
+        <div class="color-bar"></div>
+        <div class="card-body">
+          <h3 class="card-title">读书摘录</h3>
+          <p class="card-content">「好的设计是尽可能少的设计」—— Dieter Rams，十大设计原则</p>
+        </div>
+        <div class="card-footer">
+          <span class="card-time">上周</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Section 3: 色板层级对照表 -->
+  <section class="section">
+    <h2 class="section-title">6 色板层级对照（底色 / 胶条 / 标题 / 正文 / 卷角）</h2>
+    <div class="color-swatch-grid">
+
+      <div class="swatch-card">
+        <div class="preview">
+          <div class="layer" style="background: var(--color-yellow);">#FFF4C2</div>
+          <div class="layer" style="background: var(--color-yellow-tape);">#F0D97D</div>
+          <div class="layer" style="background: var(--color-yellow-title); color: rgba(255,255,255,0.5);">#5A4A1F</div>
+          <div class="layer" style="background: var(--color-yellow-content); color: rgba(255,255,255,0.5);">#6B5A2B</div>
+          <div class="layer" style="background: var(--color-yellow-fold);">#E8D27A</div>
+        </div>
+        <div class="info">
+          <h4>经典鹅黄（默认）</h4>
+          <div class="row"><span>纸张底色</span><span class="val">#FFF4C2</span></div>
+          <div class="row"><span>顶部胶条</span><span class="val">#F0D97D</span></div>
+          <div class="row"><span>标题文字</span><span class="val">#5A4A1F</span></div>
+          <div class="row"><span>正文文字</span><span class="val">#6B5A2B</span></div>
+          <div class="row"><span>卷角背面</span><span class="val">#E8D27A</span></div>
+        </div>
+      </div>
+
+      <div class="swatch-card">
+        <div class="preview">
+          <div class="layer" style="background: var(--color-pink);">#FFE6E6</div>
+          <div class="layer" style="background: var(--color-pink-tape);">#F5C2C2</div>
+          <div class="layer" style="background: var(--color-pink-title); color: rgba(255,255,255,0.5);">#5C2B2B</div>
+          <div class="layer" style="background: var(--color-pink-content); color: rgba(255,255,255,0.5);">#703A3A</div>
+          <div class="layer" style="background: var(--color-pink-fold);">#EFC0C0</div>
+        </div>
+        <div class="info">
+          <h4>樱花粉</h4>
+          <div class="row"><span>纸张底色</span><span class="val">#FFE6E6</span></div>
+          <div class="row"><span>顶部胶条</span><span class="val">#F5C2C2</span></div>
+          <div class="row"><span>标题文字</span><span class="val">#5C2B2B</span></div>
+          <div class="row"><span>正文文字</span><span class="val">#703A3A</span></div>
+          <div class="row"><span>卷角背面</span><span class="val">#EFC0C0</span></div>
+        </div>
+      </div>
+
+      <div class="swatch-card">
+        <div class="preview">
+          <div class="layer" style="background: var(--color-green);">#E8F5E0</div>
+          <div class="layer" style="background: var(--color-green-tape);">#BED9A8</div>
+          <div class="layer" style="background: var(--color-green-title); color: rgba(255,255,255,0.5);">#2F4A23</div>
+          <div class="layer" style="background: var(--color-green-content); color: rgba(255,255,255,0.5);">#3E5C30</div>
+          <div class="layer" style="background: var(--color-green-fold);">#B8D4A3</div>
+        </div>
+        <div class="info">
+          <h4>薄荷绿</h4>
+          <div class="row"><span>纸张底色</span><span class="val">#E8F5E0</span></div>
+          <div class="row"><span>顶部胶条</span><span class="val">#BED9A8</span></div>
+          <div class="row"><span>标题文字</span><span class="val">#2F4A23</span></div>
+          <div class="row"><span>正文文字</span><span class="val">#3E5C30</span></div>
+          <div class="row"><span>卷角背面</span><span class="val">#B8D4A3</span></div>
+        </div>
+      </div>
+
+      <div class="swatch-card">
+        <div class="preview">
+          <div class="layer" style="background: var(--color-blue);">#E3F0FC</div>
+          <div class="layer" style="background: var(--color-blue-tape);">#A9CBEE</div>
+          <div class="layer" style="background: var(--color-blue-title); color: rgba(255,255,255,0.5);">#1F3D5C</div>
+          <div class="layer" style="background: var(--color-blue-content); color: rgba(255,255,255,0.5);">#2C4E73</div>
+          <div class="layer" style="background: var(--color-blue-fold);">#A0C4E8</div>
+        </div>
+        <div class="info">
+          <h4>晴空蓝</h4>
+          <div class="row"><span>纸张底色</span><span class="val">#E3F0FC</span></div>
+          <div class="row"><span>顶部胶条</span><span class="val">#A9CBEE</span></div>
+          <div class="row"><span>标题文字</span><span class="val">#1F3D5C</span></div>
+          <div class="row"><span>正文文字</span><span class="val">#2C4E73</span></div>
+          <div class="row"><span>卷角背面</span><span class="val">#A0C4E8</span></div>
+        </div>
+      </div>
+
+      <div class="swatch-card">
+        <div class="preview">
+          <div class="layer" style="background: var(--color-purple);">#F1E8F7</div>
+          <div class="layer" style="background: var(--color-purple-tape);">#D4BEE4</div>
+          <div class="layer" style="background: var(--color-purple-title); color: rgba(255,255,255,0.5);">#432C5A</div>
+          <div class="layer" style="background: var(--color-purple-content); color: rgba(255,255,255,0.5);">#543B6E</div>
+          <div class="layer" style="background: var(--color-purple-fold);">#CCB5DD</div>
+        </div>
+        <div class="info">
+          <h4>芋泥紫</h4>
+          <div class="row"><span>纸张底色</span><span class="val">#F1E8F7</span></div>
+          <div class="row"><span>顶部胶条</span><span class="val">#D4BEE4</span></div>
+          <div class="row"><span>标题文字</span><span class="val">#432C5A</span></div>
+          <div class="row"><span>正文文字</span><span class="val">#543B6E</span></div>
+          <div class="row"><span>卷角背面</span><span class="val">#CCB5DD</span></div>
+        </div>
+      </div>
+
+      <div class="swatch-card">
+        <div class="preview">
+          <div class="layer" style="background: var(--color-cream);">#FBF9F3</div>
+          <div class="layer" style="background: var(--color-cream-tape);">#E8E2D3</div>
+          <div class="layer" style="background: var(--color-cream-title); color: rgba(255,255,255,0.5);">#3A3A3A</div>
+          <div class="layer" style="background: var(--color-cream-content); color: rgba(255,255,255,0.5);">#4F4F4F</div>
+          <div class="layer" style="background: var(--color-cream-fold);">#E0D9C9</div>
+        </div>
+        <div class="info">
+          <h4>奶白便签</h4>
+          <div class="row"><span>纸张底色</span><span class="val">#FBF9F3</span></div>
+          <div class="row"><span>顶部胶条</span><span class="val">#E8E2D3</span></div>
+          <div class="row"><span>标题文字</span><span class="val">#3A3A3A</span></div>
+          <div class="row"><span>正文文字</span><span class="val">#4F4F4F</span></div>
+          <div class="row"><span>卷角背面</span><span class="val">#E0D9C9</span></div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Section 4: 控件预览 -->
+  <section class="section">
+    <h2 class="section-title">控件风格（微立体按钮 + 米白输入框）</h2>
+    <div class="controls-row">
+      <div class="group">
+        <span class="label">主按钮（渐变 + 按压凹陷）</span>
+        <button class="btn-primary">+ 新建便签</button>
+      </div>
+      <div class="group">
+        <span class="label">次要按钮</span>
+        <button class="btn-secondary">⚙ 设置</button>
+      </div>
+      <div class="group">
+        <span class="label">输入框（米白底）</span>
+        <input class="input-field" placeholder="搜索便签…" />
+      </div>
+    </div>
+  </section>
+
+  <!-- Section 5: 阴影对照 -->
+  <section class="section">
+    <h2 class="section-title">阴影系统对照（4 级光影层次）</h2>
+    <div class="shadow-grid">
+      <div class="shadow-item">
+        <div class="shadow-box card-shadow"></div>
+        <div class="name">shadow-card</div>
+        <div class="desc">0 2px 6px rgba(0,0,0,0.06)</div>
+      </div>
+      <div class="shadow-item">
+        <div class="shadow-box float-shadow"></div>
+        <div class="name">shadow-float</div>
+        <div class="desc">0 8px 24px .12, 0 2px 6px .08</div>
+      </div>
+      <div class="shadow-item">
+        <div class="shadow-box strong-shadow"></div>
+        <div class="name">shadow-strong</div>
+        <div class="desc">0 4px 16px rgba(0,0,0,0.12)</div>
+      </div>
+      <div class="shadow-item">
+        <div class="shadow-box lifted-shadow"></div>
+        <div class="name">shadow-lifted</div>
+        <div class="desc">0 4px 8px .12, 0 16px 40px .12</div>
+      </div>
+    </div>
+  </section>
+
+</body>
+</html>

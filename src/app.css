@@ -12,19 +12,53 @@
 }
 
 :root {
-  /* 6 色板（PRD 6.1 推荐色值）—— 便签背景色 + 同色系深色（用于边框/阴影） */
-  --color-yellow: #fff59d;
-  --color-yellow-deep: #fbc02d;
-  --color-pink: #f8bbd0;
-  --color-pink-deep: #e91e63;
-  --color-green: #c5e1a5;
-  --color-green-deep: #7cb342;
-  --color-blue: #bbdefb;
-  --color-blue-deep: #1e88e5;
-  --color-purple: #e1bee7;
-  --color-purple-deep: #8e24aa;
-  --color-orange: #ffcc80;
-  --color-orange-deep: #fb8c00;
+  /* 6 色板（真实感拟物纸质色，v2.0）
+   * 每色 5 层级：底色 / 胶条 / 标题文字 / 正文文字 / 卷角背面
+   * 低饱和哑光底色模拟纸张观感，胶条色加深 15%~20% 模拟粘胶区域 */
+  /* 经典鹅黄（默认） */
+  --color-yellow: #fff4c2;
+  --color-yellow-tape: #f0d97d;
+  --color-yellow-title: #5a4a1f;
+  --color-yellow-content: #6b5a2b;
+  --color-yellow-fold: #e8d27a;
+  /* 樱花粉 */
+  --color-pink: #ffe6e6;
+  --color-pink-tape: #f5c2c2;
+  --color-pink-title: #5c2b2b;
+  --color-pink-content: #703a3a;
+  --color-pink-fold: #efc0c0;
+  /* 薄荷绿 */
+  --color-green: #e8f5e0;
+  --color-green-tape: #bed9a8;
+  --color-green-title: #2f4a23;
+  --color-green-content: #3e5c30;
+  --color-green-fold: #b8d4a3;
+  /* 晴空蓝 */
+  --color-blue: #e3f0fc;
+  --color-blue-tape: #a9cbee;
+  --color-blue-title: #1f3d5c;
+  --color-blue-content: #2c4e73;
+  --color-blue-fold: #a0c4e8;
+  /* 芋泥紫 */
+  --color-purple: #f1e8f7;
+  --color-purple-tape: #d4bee4;
+  --color-purple-title: #432c5a;
+  --color-purple-content: #543b6e;
+  --color-purple-fold: #ccb5dd;
+  /* 奶白便签（替代 orange）— 胶条色加深与底色拉开层次 */
+  --color-cream: #fbf9f3;
+  --color-cream-tape: #ddd4bf;
+  --color-cream-title: #3a3a3a;
+  --color-cream-content: #4f4f4f;
+  --color-cream-fold: #d5cdb8;
+
+  /* 旧变量别名（过渡期，-deep 映射到 -tape） */
+  --color-yellow-deep: var(--color-yellow-tape);
+  --color-pink-deep: var(--color-pink-tape);
+  --color-green-deep: var(--color-green-tape);
+  --color-blue-deep: var(--color-blue-tape);
+  --color-purple-deep: var(--color-purple-tape);
+  --color-cream-deep: var(--color-cream-tape);
 
   /* 字体（PRD 9.6 系统默认字体栈） */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', Roboto,
@@ -46,43 +80,71 @@
 
   /* 过渡 */
   --transition: 150ms ease;
+
+  /* 拟物化阴影系统（v2.2）
+   * 分层光影：近影体现纸张厚度，远影体现桌面投影距离
+   * 暖灰调（带棕调），避免纯黑的生硬感，与米白桌面自然融合 */
+  --shadow-card: 0 1px 2px rgba(120, 100, 40, 0.04), 0 4px 12px rgba(120, 100, 40, 0.06);
+  --shadow-float: 0 2px 4px rgba(120, 100, 40, 0.08), 0 12px 32px rgba(120, 100, 40, 0.12);
+  --shadow-strong: 0 2px 8px rgba(120, 100, 40, 0.10);
+  --shadow-paper: var(--shadow-float);
+  --shadow-paper-lifted: 0 4px 8px rgba(120, 100, 40, 0.12), 0 16px 40px rgba(120, 100, 40, 0.14);
 }
 
-/* 浅色主题（默认） */
+/* 浅色主题（默认）— 暖灰中性色，模拟哑光桌面基底 */
 :root,
 [data-theme='light'] {
-  --bg: #ffffff;
-  --bg-secondary: #f5f5f5;
-  --bg-tertiary: #eeeeee;
-  --fg: #1a1a1a;
-  --fg-secondary: #666666;
-  --fg-tertiary: #999999;
-  --border: #e0e0e0;
-  --border-strong: #bdbdbd;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-strong: 0 4px 16px rgba(0, 0, 0, 0.12);
-  --accent: #f9a825;
-  --accent-fg: #ffffff;
+  --bg-page: #f5f3ee;
+  --bg-card: #ffffff;
+  --bg-input: #fbf9f3;
+  --bg-secondary: #f0ede5;
+  --bg-tertiary: #e8e5dd;
+  --border: #e8e5dd;
+  --border-strong: #d5d0c5;
+  --text-primary: #2d2d2d;
+  --text-secondary: #6b6b6b;
+  --text-muted: #9a9a9a;
+  --primary: #f5a623;
+  --primary-hover: #ffb74d;
+  --primary-active: #e89512;
   --danger: #e53935;
   --success: #43a047;
+  /* 向后兼容别名 */
+  --fg: var(--text-primary);
+  --fg-secondary: var(--text-secondary);
+  --fg-tertiary: var(--text-muted);
+  --accent: var(--primary);
+  --accent-fg: #ffffff;
+  --bg: var(--bg-card);
+  --shadow: var(--shadow-card);
 }
 
-/* 深色主题 */
+/* 深色主题 — 深暖灰，便签色板保持纸质观感不变 */
 [data-theme='dark'] {
-  --bg: #1e1e1e;
-  --bg-secondary: #252525;
-  --bg-tertiary: #2d2d2d;
-  --fg: #e0e0e0;
-  --fg-secondary: #aaaaaa;
-  --fg-tertiary: #777777;
-  --border: #3a3a3a;
-  --border-strong: #555555;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-strong: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --accent: #ffb300;
-  --accent-fg: #1a1a1a;
+  --bg-page: #2a2825;
+  --bg-card: #32302c;
+  --bg-input: #383530;
+  --bg-secondary: #383530;
+  --bg-tertiary: #403d38;
+  --border: #4a4640;
+  --border-strong: #5a5550;
+  --text-primary: #e8e5dd;
+  --text-secondary: #aeaaa0;
+  --text-muted: #7a766e;
+  --primary: #f5a623;
+  --primary-hover: #ffb74d;
+  --primary-active: #e89512;
   --danger: #ef5350;
   --success: #66bb6a;
+  /* 向后兼容别名 */
+  --fg: var(--text-primary);
+  --fg-secondary: var(--text-secondary);
+  --fg-tertiary: var(--text-muted);
+  --accent: var(--primary);
+  --accent-fg: #1a1a1a;
+  --bg: var(--bg-card);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-strong: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 html,
@@ -91,7 +153,7 @@ body {
   font-size: 14px;
   line-height: 1.5;
   color: var(--fg);
-  background-color: var(--bg);
+  background-color: var(--bg-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
@@ -104,14 +166,14 @@ body {
   overflow: hidden;
 }
 
-/* 通用按钮 */
+/* 通用按钮 — 微立体风格 */
 button {
   font-family: inherit;
   font-size: 0.875rem;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-secondary);
+  background: var(--bg-card);
   color: var(--fg);
   cursor: pointer;
   transition: all var(--transition);
@@ -126,14 +188,23 @@ button:active {
   transform: translateY(1px);
 }
 
+/* 主按钮 — 渐变底色 + 按压凹陷 */
 button.primary {
-  background: var(--accent);
-  color: var(--accent-fg);
-  border-color: var(--accent);
+  background: linear-gradient(180deg, var(--primary-hover) 0%, var(--primary) 100%);
+  color: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 button.primary:hover {
-  filter: brightness(1.05);
+  background: linear-gradient(180deg, #ffc966 0%, var(--primary-hover) 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+button.primary:active {
+  background: var(--primary-active);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+  transform: translateY(1px);
 }
 
 button.danger {
@@ -143,10 +214,10 @@ button.danger {
 
 button.danger:hover {
   background: var(--danger);
-  color: var(--bg);
+  color: var(--bg-card);
 }
 
-/* 输入框 */
+/* 输入框 — 米白底色 */
 input,
 textarea {
   font-family: inherit;
@@ -154,7 +225,7 @@ textarea {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg);
+  background: var(--bg-input);
   color: var(--fg);
   transition: border-color var(--transition);
 }

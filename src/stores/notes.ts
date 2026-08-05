@@ -4,7 +4,7 @@
 import { writable } from 'svelte/store';
 import type { Note } from '../types/note';
 import { getNotes } from '../lib/commands';
-import { subscribeAllNotes, EVENT } from '../lib/events';
+import { subscribeAllNotes } from '../lib/events';
 
 /** Notes store 状态 */
 export const notes = writable<Note[]>([]);
@@ -37,13 +37,3 @@ export async function startNotesSubscription(): Promise<void> {
     await refreshNotes();
   });
 }
-
-/** 停止事件订阅（在 onDestroy 调用） */
-export function stopNotesSubscription(): void {
-  if (unsub) {
-    unsub();
-    unsub = null;
-  }
-}
-
-export { EVENT };
