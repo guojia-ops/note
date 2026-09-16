@@ -10,6 +10,8 @@ export const EVENT = {
   NOTE_DELETED: 'note:deleted',
   NOTE_PINNED: 'note:pinned',
   NOTE_UNPINNED: 'note:unpinned',
+  NOTE_COMPLETED: 'note:completed',
+  NOTE_UNCOMPLETED: 'note:uncompleted',
   CONFIG_UPDATED: 'config:updated',
   TRAY_NEW_NOTE: 'tray:new-note',
   STORAGE_ERROR: 'storage:error',
@@ -33,6 +35,16 @@ export function onNoteDeleted(cb: (id: string) => void): Promise<UnlistenFn> {
 /** 订阅 note:unpinned */
 export function onNoteUnpinned(cb: (id: string) => void): Promise<UnlistenFn> {
   return listen<NotePayload>(EVENT.NOTE_UNPINNED, (e) => cb(e.payload.id));
+}
+
+/** 订阅 note:completed */
+export function onNoteCompleted(cb: (id: string) => void): Promise<UnlistenFn> {
+  return listen<NotePayload>(EVENT.NOTE_COMPLETED, (e) => cb(e.payload.id));
+}
+
+/** 订阅 note:uncompleted */
+export function onNoteUncompleted(cb: (id: string) => void): Promise<UnlistenFn> {
+  return listen<NotePayload>(EVENT.NOTE_UNCOMPLETED, (e) => cb(e.payload.id));
 }
 
 /** 订阅 config:updated */
@@ -62,6 +74,8 @@ export async function subscribeAllNotes(
     listen<NotePayload>(EVENT.NOTE_DELETED, (e) => handler(EVENT.NOTE_DELETED, e.payload.id)),
     listen<NotePayload>(EVENT.NOTE_PINNED, (e) => handler(EVENT.NOTE_PINNED, e.payload.id)),
     listen<NotePayload>(EVENT.NOTE_UNPINNED, (e) => handler(EVENT.NOTE_UNPINNED, e.payload.id)),
+    listen<NotePayload>(EVENT.NOTE_COMPLETED, (e) => handler(EVENT.NOTE_COMPLETED, e.payload.id)),
+    listen<NotePayload>(EVENT.NOTE_UNCOMPLETED, (e) => handler(EVENT.NOTE_UNCOMPLETED, e.payload.id)),
   ]);
 
   // 返回一个聚合的 unlisten

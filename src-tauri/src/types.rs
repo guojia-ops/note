@@ -87,6 +87,10 @@ pub struct Note {
     /// serde default：旧 data.json 读取时缺失字段默认 ""
     #[serde(default)]
     pub monitor: String,
+    /// 完成时间戳（Unix ms），None = 未完成，Some(ts) = 已完成
+    /// serde default：旧 data.json 缺失字段默认为 None（未完成）
+    #[serde(default)]
+    pub completed_at: Option<i64>,
 }
 
 impl Note {
@@ -115,6 +119,7 @@ impl Note {
             pinned: false,
             rotation,
             monitor: String::new(),
+            completed_at: None,
         }
     }
 

@@ -143,6 +143,42 @@ impl AppState {
         Ok(updated)
     }
 
+    /// 标记便签为已完成（completed_at = now），返回更新后的便签
+    /// 若已是完成态则重复调用是 no-op，返回当前便签
+    pub fn complete(&self, id: &str) -> Result<Note> {
+        let mut data = self.data.lock().unwrap();
+        let note = data
+            .notes
+            .iter_mut()
+            .find(|n| n.id == id)
+            .ok_or_else(|| Error::NotFound(id.to_string()))?;
+        if note.completed_at.is_none() {
+            note.completed_at = Some(chrono::Utc::now().timestamp_millis());
+            note.touch();
+        }
+        let updated = note.clone();
+        self.save_data_with_backup(&data)?;
+        Ok(updated)
+    }
+
+    /// 撤销完成（completed_at = None），返回更新后的便签
+    /// 若本就是未完成态则 no-op
+    pub fn uncomplete(&self, id: &str) -> Result<Note> {
+        let mut data = self.data.lock().unwrap();
+        let note = data
+            .notes
+            .iter_mut()
+            .find(|n| n.id == id)
+            .ok_or_else(|| Error::NotFound(id.to_string()))?;
+        if note.completed_at.is_some() {
+            note.completed_at = None;
+            note.touch();
+        }
+        let updated = note.clone();
+        self.save_data_with_backup(&data)?;
+        Ok(updated)
+    }
+
     /// 获取配置
     pub fn get_config(&self) -> Config {
         self.config.lock().unwrap().clone()
@@ -320,6 +356,78 @@ mod tests {
 
         let unpinned = state.set_pinned(&note.id, false).unwrap();
         assert!(!unpinned.pinned);
+    }
+
+    #[test]
+    fn complete_sets_timestamp_and_persists() {
+        let (_tmp, state) = make_state();
+        let note = state.create_note("T".into(), "".into(), NoteColor::Yellow).unwrap();
+        assert!(note.completed_at.is_none());
+
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let completed = state.complete(&note.id).unwrap();
+        assert!(completed.completed_at.is_some());
+        assert!(completed.completed_at.unwrap() > note.created_at);
+        assert_eq!(completed.updated_at, completed.completed_at.unwrap());
+
+        // no-op：再次 complete 不改变 timestamp
+        let completed2 = state.complete(&note.id).unwrap();
+        assert_eq!(completed2.completed_at, completed.completed_at);
+
+        // 重新从 storage 加载验证持久化
+        let storage = Storage {
+            data_dir: state.storage().data_dir().to_path_buf(),
+        };
+        let reloaded = storage.load_data().unwrap();
+        assert_eq!(reloaded.notes.len(), 1);
+        assert_eq!(reloaded.notes[0].completed_at, completed.completed_at);
+    }
+
+    #[test]
+    fn uncomplete_clears_timestamp() {
+        let (_tmp, state) = make_state();
+        let note = state.create_note("T".into(), "".into(), NoteColor::Yellow).unwrap();
+
+        let completed = state.complete(&note.id).unwrap();
+        assert!(completed.completed_at.is_some());
+
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let uncompleted = state.uncomplete(&note.id).unwrap();
+        assert!(uncompleted.completed_at.is_none());
+        assert!(uncompleted.updated_at > completed.updated_at);
+
+        // no-op：再次 uncomplete 不报错
+        assert!(state.uncomplete(&note.id).is_ok());
+    }
+
+    #[test]
+    fn complete_not_found_returns_err() {
+        let (_tmp, state) = make_state();
+        assert!(state.complete("nope").is_err());
+        assert!(state.uncomplete("nope").is_err());
+    }
+
+    #[test]
+    fn old_notes_default_completed_at_none() {
+        // 模拟旧 data.json（不含 completed_at 字段）反序列化时默认 None
+        let json_without_field = serde_json::json!({
+            "id": "old-uuid",
+            "title": "old",
+            "content": "",
+            "color": "yellow",
+            "width": 240,
+            "height": 240,
+            "x": 100,
+            "y": 100,
+            "created_at": 0,
+            "updated_at": 0,
+            "pinned": false,
+            "rotation": 0.0,
+            "monitor": "",
+            // 无 completed_at 字段
+        });
+        let n: Note = serde_json::from_value(json_without_field).unwrap();
+        assert!(n.completed_at.is_none());
     }
 
     #[test]

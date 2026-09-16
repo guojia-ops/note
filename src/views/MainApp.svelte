@@ -4,8 +4,17 @@
   // 阶段 8：监听托盘/全局快捷键的 tray:new-note 事件
   import { onMount, onDestroy } from 'svelte';
   import { notes, notesLoading } from '../stores/notes';
-  import { createNote, pinNote, unpinNote, deleteNote, updateNote, getNotes } from '../lib/commands';
-  import { onTrayNewNote, onStorageError } from '../lib/events';
+  import {
+    createNote,
+    pinNote,
+    unpinNote,
+    deleteNote,
+    updateNote,
+    getNotes,
+    completeNote,
+    uncompleteNote,
+  } from '../lib/commands';
+  import { onTrayNewNote, onStorageError, onNoteCompleted, onNoteUncompleted } from '../lib/events';
   import NoteCard from '../components/NoteCard.svelte';
   import NoteEditModal from '../components/NoteEditModal.svelte';
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
@@ -36,8 +45,17 @@
     }, 200);
   }
 
-  // 过滤后的便签列表（贴出的排在前）
+  // Tab 切换：未完成 / 已完成
+  type TabKey = 'active' | 'completed';
+  let currentTab: TabKey = 'active';
+  $: completedCount = $notes.filter((n) => !!n.completed_at).length;
+
+  // 过滤后的便签列表
+  // - 按 Tab 过滤完成状态
+  // - 按搜索词过滤
+  // - 排序：未完成 Tab → pinned 优先 + updated_at 倒序；已完成 Tab → completed_at 倒序
   $: filtered = $notes
+    .filter((n) => (currentTab === 'active' ? !n.completed_at : !!n.completed_at))
     .filter((n) => {
       if (!searchTerm) return true;
       return (
@@ -46,10 +64,32 @@
       );
     })
     .sort((a, b) => {
-      // 贴出的靠前，然后按更新时间倒序
+      if (currentTab === 'completed') {
+        return (b.completed_at || 0) - (a.completed_at || 0);
+      }
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       return b.updated_at - a.updated_at;
     });
+
+  // 通用 Toast 提示
+  interface Toast {
+    id: number;
+    type: 'success' | 'info' | 'error';
+    message: string;
+  }
+  let toasts: Toast[] = [];
+  let toastSeq = 0;
+  let toastTimers: Map<number, ReturnType<typeof setTimeout>> = new Map();
+
+  function showToast(message: string, type: Toast['type'] = 'success', duration = 3000) {
+    const id = ++toastSeq;
+    toasts = [...toasts, { id, type, message }];
+    const t = setTimeout(() => {
+      toasts = toasts.filter((x) => x.id !== id);
+      toastTimers.delete(id);
+    }, duration);
+    toastTimers.set(id, t);
+  }
 
   // 新建便签：创建数据 + 立即贴出
   async function handleCreate() {
@@ -120,6 +160,26 @@
     await deleteNote(note.id);
   }
 
+  // 卡片：标记完成（从未完成 Tab）
+  async function handleComplete(note: Note) {
+    try {
+      await completeNote(note.id);
+    } catch (e) {
+      console.error('[DeskNote] 标记完成失败', e);
+      showToast('标记完成失败', 'error');
+    }
+  }
+
+  // 卡片：撤销完成（从已完成 Tab）
+  async function handleUncomplete(note: Note) {
+    try {
+      await uncompleteNote(note.id);
+    } catch (e) {
+      console.error('[DeskNote] 撤销完成失败', e);
+      showToast('撤销完成失败', 'error');
+    }
+  }
+
   // 右键菜单
   let menuX = 0;
   let menuY = 0;
@@ -145,6 +205,17 @@
     closeMenu();
   }
 
+  function menuComplete() {
+    if (menuNote) {
+      if (menuNote.completed_at) {
+        void handleUncomplete(menuNote);
+      } else {
+        void handleComplete(menuNote);
+      }
+    }
+    closeMenu();
+  }
+
   function menuDelete() {
     if (menuNote) void handleDelete(menuNote);
     closeMenu();
@@ -167,6 +238,25 @@
       trayUnlistens.push(await onStorageError(showStorageError));
     } catch (e) {
       console.error('[DeskNote] storage:error 监听注册失败', e);
+    }
+    // 完成/撤销完成 Toast 反馈
+    try {
+      trayUnlistens.push(
+        await onNoteCompleted(() => {
+          showToast('✅ 便签已完成，可在「已完成」Tab 查看');
+        }),
+      );
+    } catch (e) {
+      console.error('[DeskNote] note:completed 监听注册失败', e);
+    }
+    try {
+      trayUnlistens.push(
+        await onNoteUncompleted(() => {
+          showToast('↩️ 已撤销完成', 'info');
+        }),
+      );
+    } catch (e) {
+      console.error('[DeskNote] note:uncompleted 监听注册失败', e);
     }
 
     // 恢复已贴出的便签窗口：应用重启后，pinned=true 的便签需要重新创建窗口
@@ -196,6 +286,8 @@
       }
     });
     if (storageErrorTimer) clearTimeout(storageErrorTimer);
+    for (const t of toastTimers.values()) clearTimeout(t);
+    toastTimers.clear();
   });
 
   // SOP 10.8：全局错误边界，捕获未处理异常并输出日志
@@ -218,19 +310,55 @@
   {#if storageError}
     <div class="storage-toast" role="alert">{storageError}</div>
   {/if}
+  <!-- 通用 Toast 容器 -->
+  <div class="toast-container">
+    {#each toasts as toast (toast.id)}
+      <div class="toast" class:success={toast.type === 'success'} class:error={toast.type === 'error'}>
+        {toast.message}
+      </div>
+    {/each}
+  </div>
+
   <!-- 顶部栏（SOP 6.2） -->
   <header class="topbar">
     <h1 class="brand">DeskNote</h1>
     <input
       class="search"
       type="text"
-      placeholder="搜索便签…"
+      placeholder={currentTab === 'completed' ? '搜索已完成便签…' : '搜索便签…'}
       bind:value={keyword}
       on:input={onSearchInput}
     />
     <button class="primary" on:click={handleCreate} title="新建便签">+ 新建</button>
     <button on:click={handleSettings} title="设置" aria-label="设置">⚙</button>
   </header>
+
+  <!-- Tab 切换栏 -->
+  <nav class="tab-bar" role="tablist" aria-label="便签状态分类">
+    <button
+      role="tab"
+      aria-selected={currentTab === 'active'}
+      class="tab-item"
+      class:active={currentTab === 'active'}
+      on:click={() => currentTab = 'active'}
+    >
+      <span class="tab-icon">📋</span>
+      <span>未完成</span>
+    </button>
+    <button
+      role="tab"
+      aria-selected={currentTab === 'completed'}
+      class="tab-item"
+      class:active={currentTab === 'completed'}
+      on:click={() => currentTab = 'completed'}
+    >
+      <span class="tab-icon">✅</span>
+      <span>已完成</span>
+      {#if completedCount > 0}
+        <span class="tab-badge">({completedCount})</span>
+      {/if}
+    </button>
+  </nav>
 
   <!-- 内容区 -->
   <section class="content">
@@ -241,9 +369,14 @@
       <div class="state empty">
         {#if searchTerm}
           <p>没有匹配的便签</p>
-        {:else}
-          <p class="empty-title">还没有便签</p>
+        {:else if currentTab === 'active'}
+          <p class="empty-icon" aria-hidden="true">📝</p>
+          <p class="empty-title">暂无未完成的便签</p>
           <p class="empty-hint">点击「+ 新建」创建第一张便签</p>
+        {:else}
+          <p class="empty-icon" aria-hidden="true">✅</p>
+          <p class="empty-title">还没有完成的便签</p>
+          <p class="empty-hint">在便签上点击 ✓ 按钮标记完成</p>
         {/if}
       </div>
     {:else}
@@ -255,6 +388,8 @@
             on:edit={(e) => openEdit(e.detail)}
             on:togglePin={(e) => togglePin(e.detail)}
             on:delete={(e) => handleDelete(e.detail)}
+            on:complete={(e) => handleComplete(e.detail)}
+            on:uncomplete={(e) => handleUncomplete(e.detail)}
             on:contextmenu={(e) => openMenu(e.detail)}
           />
         {/each}
@@ -283,6 +418,9 @@
       {menuNote.pinned ? '▾ 收回' : '📍 贴出'}
     </button>
     <button class="menu-item" on:click={menuEdit} role="menuitem">✎ 编辑</button>
+    <button class="menu-item" on:click={menuComplete} role="menuitem">
+      {menuNote.completed_at ? '↩️ 撤销完成' : '✓ 标记完成'}
+    </button>
     <div class="menu-divider"></div>
     <button class="menu-item danger" on:click={menuDelete} role="menuitem">✕ 删除</button>
   </div>
@@ -355,6 +493,57 @@
     font-size: 0.85rem;
   }
 
+  .empty-icon {
+    font-size: 2rem;
+    margin-bottom: var(--space-2);
+  }
+
+  /* Tab 切换栏 */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    padding: 0 var(--space-4);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .tab-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--fg-secondary);
+    font-size: 0.875rem;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 150ms ease;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .tab-item:hover {
+    background: var(--bg-secondary);
+    color: var(--fg-primary);
+  }
+
+  .tab-item.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .tab-icon {
+    font-size: 0.95rem;
+  }
+
+  .tab-badge {
+    color: var(--fg-muted);
+    font-size: 0.75rem;
+    font-weight: 400;
+  }
+
   /* 右键菜单 */
   .context-menu {
     position: fixed;
@@ -424,6 +613,58 @@
     to {
       opacity: 1;
       transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  /* 通用 Toast 容器（在 storage toast 下方堆叠） */
+  .toast-container {
+    position: fixed;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .toast {
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    background: #32302C;
+    color: #E8E5DD;
+    font-size: 0.875rem;
+    box-shadow: var(--shadow-strong);
+    animation: toast-pop 200ms ease, toast-pop-out 200ms ease 2.8s forwards;
+    pointer-events: auto;
+  }
+
+  .toast.success {
+    background: linear-gradient(180deg, #5CB85C 0%, #4CAF50 100%);
+    color: #fff;
+  }
+
+  .toast.error {
+    background: linear-gradient(180deg, #e25a5a 0%, var(--danger) 100%);
+    color: #fff;
+  }
+
+  @keyframes toast-pop {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes toast-pop-out {
+    to {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.97);
     }
   }
 </style>

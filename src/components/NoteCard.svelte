@@ -10,8 +10,12 @@
 
   const dispatch = createEventDispatcher();
 
+  $: isCompleted = !!note.completed_at;
   $: previewTitle = getPreviewText(note);
   $: contentPreview = note.content.trim().replace(/\s+/g, ' ');
+  $: timeLabel = isCompleted && note.completed_at
+    ? `完成于 ${relativeTime(note.completed_at)}`
+    : relativeTime(note.updated_at);
 
   function onDoubleClick() {
     dispatch('edit', note);
@@ -27,6 +31,16 @@
     dispatch('togglePin', note);
   }
 
+  function onComplete(e: MouseEvent) {
+    e.stopPropagation();
+    dispatch('complete', note);
+  }
+
+  function onUncomplete(e: MouseEvent) {
+    e.stopPropagation();
+    dispatch('uncomplete', note);
+  }
+
   function onDelete(e: MouseEvent) {
     e.stopPropagation();
     dispatch('delete', note);
@@ -36,6 +50,7 @@
 <div
   class="card"
   class:pinned={note.pinned}
+  class:completed={isCompleted}
   style="--card-color: var(--color-{note.color}); --card-color-deep: var(--color-{note.color}-deep); --card-color-tape: var(--color-{note.color}-tape); --card-color-title: var(--color-{note.color}-title);"
   on:dblclick={onDoubleClick}
   on:contextmenu={onContextMenu}
@@ -46,20 +61,39 @@
   <div class="color-bar"></div>
 
   <div class="body">
-    <h3 class="title">{previewTitle}</h3>
+    <h3 class="title" class:strikethrough={isCompleted}>{previewTitle}</h3>
     {#if contentPreview}
-      <p class="content">{contentPreview}</p>
+      <p class="content" class:strikethrough={isCompleted}>{contentPreview}</p>
     {/if}
   </div>
 
   <div class="footer">
-    <span class="time">{relativeTime(note.updated_at)}</span>
+    <span class="time">{timeLabel}</span>
     {#if note.pinned}
       <span class="pinned-tag">已贴出</span>
     {/if}
   </div>
 
   <div class="actions">
+    {#if !isCompleted}
+      <button
+        class="action-btn complete"
+        on:click={onComplete}
+        title="标记完成"
+        aria-label="标记完成"
+      >
+        ✓
+      </button>
+    {:else}
+      <button
+        class="action-btn uncomplete"
+        on:click={onUncomplete}
+        title="撤销完成"
+        aria-label="撤销完成"
+      >
+        ↩
+      </button>
+    {/if}
     <button
       class="action-btn"
       on:click={onTogglePin}
@@ -222,5 +256,43 @@
   .action-btn.danger:hover {
     background: var(--danger);
     color: #fff;
+  }
+
+  .action-btn.complete {
+    color: #4CAF50;
+    width: auto;
+    min-width: 28px;
+    padding: 0 6px;
+    font-weight: 700;
+  }
+  .action-btn.complete:hover {
+    background: color-mix(in srgb, #4CAF50 15%, transparent);
+    color: #3d8b40;
+  }
+
+  .action-btn.uncomplete {
+    color: #F5A623;
+    width: auto;
+    min-width: 28px;
+    padding: 0 6px;
+    font-weight: 700;
+  }
+  .action-btn.uncomplete:hover {
+    background: color-mix(in srgb, #F5A623 15%, transparent);
+    color: #c98617;
+  }
+
+  /* 完成态卡片：视觉降权 */
+  .card.completed {
+    opacity: 0.75;
+  }
+  .card.completed .color-bar {
+    filter: grayscale(0.6) brightness(0.95);
+  }
+
+  .strikethrough {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, var(--fg-secondary) 60%, transparent);
   }
 </style>

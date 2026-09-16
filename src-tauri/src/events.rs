@@ -9,6 +9,8 @@ pub mod event_name {
     pub const NOTE_DELETED: &str = "note:deleted";
     pub const NOTE_PINNED: &str = "note:pinned";
     pub const NOTE_UNPINNED: &str = "note:unpinned";
+    pub const NOTE_COMPLETED: &str = "note:completed";
+    pub const NOTE_UNCOMPLETED: &str = "note:uncompleted";
     pub const CONFIG_UPDATED: &str = "config:updated";
     /// 托盘/全局快捷键触发「新建便签」→ 主窗口前端监听后调 createNote+pinNote
     pub const TRAY_NEW_NOTE: &str = "tray:new-note";

@@ -30,6 +30,9 @@ export interface Note {
   /** 所属显示器标识（多屏记忆），空字符串回退主屏
    *  旧 data.json 缺失该字段时由 Rust serde default 补 "" */
   monitor?: string;
+  /** 完成时间戳（Unix ms），undefined = 未完成，number = 已完成
+   *  旧 data.json 缺失该字段时由 Rust serde default 补 undefined */
+  completed_at?: number;
 }
 
 /** 应用配置（对应 Rust Config） */

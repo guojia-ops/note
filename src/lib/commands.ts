@@ -44,16 +44,12 @@ export function getNotes(): Promise<Note[]> {
  *   alwaysOnTop 值从 config 实时读取（Rust get_config 返回），保证与设置一致。
  */
 export async function pinNote(id: string): Promise<void> {
-  // 先调 Rust 更新 pinned 状态，返回 note 数据用于设置窗口初始位置尺寸
-  const note = await invoke<Note>('pin_note', { id });
-  // 同时获取 config.always_on_top，保证与设置一致
-  let alwaysOnTop = true;
-  try {
-    const cfg = await invoke<Config>('get_config');
-    alwaysOnTop = cfg.always_on_top ?? true;
-  } catch {
-    /* ignore，默认 true */
-  }
+  // 并行：更新 pinned 状态 + 获取 config，减少窗口创建前的等待
+  const [note, cfg] = await Promise.all([
+    invoke<Note>('pin_note', { id }),
+    invoke<Config>('get_config').catch(() => null),
+  ]);
+  const alwaysOnTop = cfg?.always_on_top ?? true;
 
   // 前端创建便签窗口，用 note 的位置和尺寸恢复
   const label = `note-${id}`;
@@ -123,6 +119,16 @@ export async function unpinNote(id: string): Promise<void> {
   } catch {
     // 窗口可能已被 Rust 侧关闭，忽略
   }
+}
+
+/** 标记完成（桌面便签会自动收回，由 Rust 侧负责关闭窗口） */
+export function completeNote(id: string): Promise<Note> {
+  return invoke<Note>('complete_note', { id });
+}
+
+/** 撤销完成（不收回便签窗口） */
+export function uncompleteNote(id: string): Promise<Note> {
+  return invoke<Note>('uncomplete_note', { id });
 }
 
 /** 获取配置 */

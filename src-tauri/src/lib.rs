@@ -181,6 +181,8 @@ pub fn run() {
             commands::get_notes,
             commands::pin_note,
             commands::unpin_note,
+            commands::complete_note,
+            commands::uncomplete_note,
             commands::get_config,
             commands::update_config,
             commands::export_notes,

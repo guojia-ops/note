@@ -231,12 +231,11 @@
       </label>
     </div>
 
-    <!-- 全局快捷键（SOP 7.5，阶段 8 实现实际注册） -->
+    <!-- 全局快捷键（SOP 7.5） -->
     <div class="row">
       <div class="field-info">
         <span class="label">全局快捷键</span>
         <span class="desc">任意位置按此键新建便签（例：Ctrl+Alt+N）</span>
-        <span class="badge warn">阶段 8 实现</span>
       </div>
       <div class="input-wrap">
         <input
@@ -401,8 +400,7 @@
     <div class="row stack">
       <div class="field-info">
         <span class="label">关闭主窗口时</span>
-        <span class="desc">阶段 8 实现实际拦截（功能待实现）</span>
-        <span class="badge warn">阶段 8 实现</span>
+        <span class="desc">控制点击主窗口关闭按钮后的行为</span>
       </div>
       <div class="radio-group">
         {#each CLOSE_OPTIONS as opt}
@@ -500,20 +498,6 @@
     margin-left: var(--space-2);
     color: var(--accent);
     font-size: 0.72rem;
-  }
-
-  .badge {
-    display: inline-block;
-    width: fit-content;
-    font-size: 0.65rem;
-    padding: 1px 6px;
-    border-radius: var(--radius-sm);
-    margin-top: 2px;
-  }
-
-  .badge.warn {
-    background: var(--accent);
-    color: var(--accent-fg);
   }
 
   .input-wrap {

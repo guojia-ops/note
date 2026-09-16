@@ -2,7 +2,7 @@
   // 便签窗口主组件（阶段 5）
   // PRD 6.2 / SOP 5：拖动、关闭、编辑、改色、尺寸/位置记忆、多窗口同步
   // 阶段 9：订阅 config:updated，主题变更实时同步到便签窗口
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import {
     getCurrentWindow,
     currentMonitor as apiCurrentMonitor,
@@ -10,7 +10,7 @@
   import type { UnlistenFn } from '@tauri-apps/api/event';
   import type { Note, NoteColor } from '../types/note';
   import { NOTE_COLORS } from '../types/note';
-  import { getNotes, updateNote, unpinNote } from '../lib/commands';
+  import { getNotes, updateNote, unpinNote, completeNote, uncompleteNote } from '../lib/commands';
   import { onNoteUpdated, onNoteDeleted, onNoteUnpinned } from '../lib/events';
   import { splitByUrl } from '../lib/url';
   import {
@@ -60,6 +60,8 @@
   let leaving = false;
 
   const unlistens: UnlistenFn[] = [];
+
+  $: isCompleted = !!note?.completed_at;
 
   function countUrls(text: string): number {
     return splitByUrl(text).filter((s) => s.type === 'url').length;
@@ -233,6 +235,32 @@
     }
   }
 
+  /** 完成 / 撤销完成 切换
+   * - 未完成 → 已完成：flush 未保存数据 → completeNote（窗口由 Rust 侧关闭）
+   * - 已完成 → 未完成：立即调后端，不收回窗口
+   */
+  async function handleCompleteToggle() {
+    if (!note || closing) return;
+
+    if (isCompleted) {
+      // 撤销完成：没有动画，不收回窗口
+      try {
+        const updated = await uncompleteNote(note.id);
+        if (note) note.completed_at = updated.completed_at;
+      } catch (e) {
+        console.error('[DeskNote] 撤销完成失败', e);
+      }
+    } else {
+      // 标记完成：先 flush 未保存数据，再调后端（窗口由 Rust 侧关闭）
+      await Promise.all([flushContent(), flushTitle(), flushSize(), flushPosition()]);
+      try {
+        await completeNote(note.id);
+      } catch (e) {
+        console.error('[DeskNote] 标记完成失败', e);
+      }
+    }
+  }
+
   onMount(async () => {
     const params = new URLSearchParams(window.location.search);
     noteId = params.get('id');
@@ -246,150 +274,108 @@
 
     const win = getCurrentWindow();
 
-    // 缓存缩放因子，供 onResized/onMoved 同步转换物理像素→逻辑像素
-    try {
-      cachedScaleFactor = await win.scaleFactor();
-    } catch {
-      cachedScaleFactor = 1;
-    }
+    // 并行注册所有监听器 + 获取 scaleFactor，减少 show 前的串行 IPC 等待
+    let lastMonitorName = '';
+    const results = await Promise.allSettled([
+      win.scaleFactor(),
+      win.onResized((e) => {
+        if (!noteReady) return;
+        const { width, height } = e.payload;
+        pendingSize = {
+          w: Math.round(width / cachedScaleFactor),
+          h: Math.round(height / cachedScaleFactor),
+        };
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(flushSize, 200);
+      }),
+      win.onMoved(async (e) => {
+        if (!noteReady) return;
 
-    // SOP 5.6：监听调整大小，立即更新缓冲，防抖落库 width/height
-    // 关键：pendingSize 必须同步设置，否则调整后 200ms 内关闭窗口会丢失
-    // noteReady 守卫：忽略窗口创建时的初始化 onResized，避免覆盖 note 正确数据
-    try {
-      unlistens.push(
-        await win.onResized((e) => {
-          if (!noteReady) return;
-          const { width, height } = e.payload;
-          pendingSize = {
-            w: Math.round(width / cachedScaleFactor),
-            h: Math.round(height / cachedScaleFactor),
-          };
-          if (resizeTimer) clearTimeout(resizeTimer);
-          resizeTimer = setTimeout(flushSize, 200);
-        }),
-      );
-    } catch (e) {
-      console.error('[DeskNote] onResized 注册失败', e);
-    }
+        const { x, y } = e.payload;
+        pendingPos = {
+          x: Math.round(x / cachedScaleFactor),
+          y: Math.round(y / cachedScaleFactor),
+        };
 
-    // SOP 5.7：监听拖动结束，立即更新缓冲，防抖落库 x/y
-    // v1.1 拟物化 1.2：首次 onMoved 进入 dragging 状态（抬升阴影 + scale），
-    //   300ms 静止判定拖动结束，回落阴影
-    // v1.1 优化阶段 2.4：记录显示器标识（拖动结束后才查询，避免每像素 IPC 卡顿）
-    //   同时更新 cachedScaleFactor，避免跨显示器 DPI 不同导致坐标换算错误
-    try {
-      let lastMonitorName = '';
-      unlistens.push(
-        await win.onMoved(async (e) => {
-          if (!noteReady) return;
-
-          const { x, y } = e.payload;
-          pendingPos = {
-            x: Math.round(x / cachedScaleFactor),
-            y: Math.round(y / cachedScaleFactor),
-          };
-
-          // 拖动抬升：首次 onMoved 置 true，重置静止计时器
-          if (!dragging) dragging = true;
-          if (dragIdleTimer) clearTimeout(dragIdleTimer);
-          dragIdleTimer = setTimeout(async () => {
-            dragging = false;
-            // 拖动结束后才查询显示器标识（避免每像素移动都发 IPC）
-            try {
-              const mon = await apiCurrentMonitor();
-              if (mon) {
-                const name = mon.name ?? '';
-                // 更新 cachedScaleFactor（跨显示器 DPI 可能不同）
-                if (mon.scaleFactor !== cachedScaleFactor) {
-                  cachedScaleFactor = mon.scaleFactor;
-                }
-                // 用最新的 scaleFactor 重新校准 pendingPos（如果有未提交的位置）
-                if (pendingPos) {
-                  pendingPos = {
-                    x: Math.round(e.payload.x / cachedScaleFactor),
-                    y: Math.round(e.payload.y / cachedScaleFactor),
-                  };
-                  void flushPosition();
-                }
-                // 保存显示器标识（变化时才落库）
-                if (name !== lastMonitorName) {
-                  lastMonitorName = name;
-                  if (note) {
-                    note.monitor = name;
-                    updateNote(note.id, { monitor: name }).catch((err) =>
-                      console.error('[DeskNote] 保存显示器失败', err),
-                    );
-                  }
+        // 拖动抬升：首次 onMoved 置 true，重置静止计时器
+        if (!dragging) dragging = true;
+        if (dragIdleTimer) clearTimeout(dragIdleTimer);
+        dragIdleTimer = setTimeout(async () => {
+          dragging = false;
+          // 拖动结束后才查询显示器标识（避免每像素移动都发 IPC）
+          try {
+            const mon = await apiCurrentMonitor();
+            if (mon) {
+              const name = mon.name ?? '';
+              if (mon.scaleFactor !== cachedScaleFactor) {
+                cachedScaleFactor = mon.scaleFactor;
+              }
+              if (pendingPos) {
+                pendingPos = {
+                  x: Math.round(e.payload.x / cachedScaleFactor),
+                  y: Math.round(e.payload.y / cachedScaleFactor),
+                };
+                void flushPosition();
+              }
+              if (name !== lastMonitorName) {
+                lastMonitorName = name;
+                if (note) {
+                  note.monitor = name;
+                  updateNote(note.id, { monitor: name }).catch((err) =>
+                    console.error('[DeskNote] 保存显示器失败', err),
+                  );
                 }
               }
-            } catch {
-              /* ignore */
             }
-          }, 300);
-          if (moveTimer) clearTimeout(moveTimer);
-          moveTimer = setTimeout(flushPosition, 200);
-        }),
-      );
-    } catch (e) {
-      console.error('[DeskNote] onMoved 注册失败', e);
-    }
-
-    // SOP 5.10：多窗口编辑一致性，订阅 note:updated
-    try {
-      unlistens.push(
-        await onNoteUpdated(async (id) => {
-          if (id !== noteId || !note) return;
-          // 正在编辑的字段不覆盖，避免打断输入
-          const active = document.activeElement;
-          const editingContent = active?.tagName === 'TEXTAREA';
-          const editingTitle = active?.classList.contains('title-input');
-          try {
-            const list = await getNotes();
-            const fresh = list.find((n) => n.id === noteId);
-            if (!fresh) return;
-            note = fresh;
-            if (!editingTitle) titleInput = fresh.title;
-            if (!editingContent) {
-              contentInput = fresh.content;
-              urlCount = countUrls(contentInput);
-            }
-          } catch (e) {
-            console.error('[DeskNote] 同步失败', e);
+          } catch {
+            /* ignore */
           }
-        }),
-      );
-    } catch (e) {
-      console.error('[DeskNote] onNoteUpdated 注册失败', e);
+        }, 300);
+        if (moveTimer) clearTimeout(moveTimer);
+        moveTimer = setTimeout(flushPosition, 200);
+      }),
+      onNoteUpdated(async (id) => {
+        if (id !== noteId || !note) return;
+        const active = document.activeElement;
+        const editingContent = active?.tagName === 'TEXTAREA';
+        const editingTitle = active?.classList.contains('title-input');
+        try {
+          const list = await getNotes();
+          const fresh = list.find((n) => n.id === noteId);
+          if (!fresh) return;
+          note = fresh;
+          if (!editingTitle) titleInput = fresh.title;
+          if (!editingContent) {
+            contentInput = fresh.content;
+            urlCount = countUrls(contentInput);
+          }
+        } catch (e) {
+          console.error('[DeskNote] 同步失败', e);
+        }
+      }),
+      onNoteDeleted((id) => {
+        if (id === noteId) void closeWindow();
+      }),
+      onNoteUnpinned((id) => {
+        if (id === noteId) void closeWindow();
+      }),
+    ]);
+    // 取出结果：scaleFactor + 5 个 unlisten 函数
+    const r0 = results[0];
+    if (r0.status === 'fulfilled') {
+      cachedScaleFactor = r0.value as number;
+    }
+    for (let i = 1; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === 'fulfilled') {
+        unlistens.push(r.value as UnlistenFn);
+      }
     }
 
-    // 便签被删除 → 关闭窗口（先 flush，避免拖动/调整数据丢失）
-    try {
-      unlistens.push(
-        await onNoteDeleted((id) => {
-          if (id === noteId) void closeWindow();
-        }),
-      );
-    } catch (e) {
-      console.error('[DeskNote] onNoteDeleted 注册失败', e);
-    }
-
-    // 便签被收回（主窗口操作）→ 关闭窗口（先 flush，避免拖动/调整数据丢失）
-    try {
-      unlistens.push(
-        await onNoteUnpinned((id) => {
-          if (id === noteId) void closeWindow();
-        }),
-      );
-    } catch (e) {
-      console.error('[DeskNote] onNoteUnpinned 注册失败', e);
-    }
-
-    // 所有监听器注册完成，放行 onResized/onMoved，并显示窗口（避免空白闪烁）
+    // 所有监听器注册完成，放行 onResized/onMoved
     noteReady = true;
 
-    // 初始化：若便签 monitor 为空（新便签或旧数据迁移），立即记录当前显示器，
-    // 并确保位置坐标是正确的逻辑像素（避免首次贴出后立即收回再贴出丢失位置）
+    // 初始化：若便签 monitor 为空（新便签或旧数据迁移），立即记录当前显示器
     if (note && !note.monitor) {
       try {
         const mon = await apiCurrentMonitor();
@@ -401,7 +387,6 @@
               console.error('[DeskNote] 初始化显示器失败', err),
             );
           }
-          // 用当前显示器的 scaleFactor 刷新 cachedScaleFactor
           if (mon.scaleFactor !== cachedScaleFactor) {
             cachedScaleFactor = mon.scaleFactor;
           }
@@ -411,9 +396,10 @@
       }
     }
 
-    // v1.1 拟物化 1.4/1.6：show 前先置 entering（初始 scale 0.9 + opacity 0），
-    //   show 后下一帧移除 entering，触发 250ms 淡入 + 缩放过渡（贴出飞入感）
+    // show 前先置 entering + tick 确保 DOM 渲染初始状态（opacity 0 + scale 0.9），
+    //   避免 win.show() 时窗口先以全透明内容闪现再应用 entering class
     entering = true;
+    await tick();
     try {
       await win.show();
       await win.setFocus();
@@ -479,6 +465,7 @@
   class:dragging
   class:entering
   class:leaving
+  class:completed={isCompleted}
 >
   <div
     class="note-app-inner"
@@ -499,6 +486,15 @@
         on:input={onTitleInput}
         on:blur={onTitleBlur}
       />
+      <button
+        class="complete-btn"
+        class:completed={isCompleted}
+        on:click={handleCompleteToggle}
+        title={isCompleted ? '撤销完成' : '标记完成并收回'}
+        aria-label={isCompleted ? '撤销完成' : '标记完成'}
+      >
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+      </button>
       <button class="close-btn" on:click={handleClose} title="收回便签" aria-label="收回便签">
         ×
       </button>
@@ -604,6 +600,17 @@
   .note-app.leaving .note-app-inner {
     opacity: 0;
     transform: rotate(var(--rotation, 0deg)) scale(0.92);
+  }
+
+  /* 完成态（稳定，已完成再次贴出时显示） */
+  .note-app.completed .note-app-inner {
+    opacity: 0.85;
+  }
+  .note-app.completed .title-input,
+  .note-app.completed .content {
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    text-decoration-color: color-mix(in srgb, var(--note-title) 55%, transparent);
   }
 
   /* v2.4 拟物化：右下角卷角 — 22px + 背面深色 + 内侧投影 + 折痕高光
@@ -776,6 +783,37 @@
     background: rgba(255, 255, 255, 0.45);
   }
 
+  .complete-btn {
+    width: 22px;
+    height: 22px;
+    margin-right: 6px;
+    border-radius: 50%;
+    border: 1.5px solid var(--note-title);
+    background: transparent;
+    color: var(--note-title);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    flex-shrink: 0;
+    transition: all 150ms ease;
+    /* 默认隐藏，hover/focus-within 时淡入；已完成态常显 */
+    opacity: 0;
+  }
+  .complete-btn.completed {
+    background: #4CAF50;
+    border-color: #4CAF50;
+    color: white;
+    opacity: 1 !important;
+  }
+  .complete-btn:not(.completed):hover {
+    background: #4CAF50;
+    border-color: #4CAF50;
+    color: white;
+    opacity: 1 !important;
+  }
+
   .close-btn {
     width: 28px;
     height: 28px;
@@ -839,13 +877,16 @@
   }
 
   /* v1.1 拟物化 1.1：便签 hover 或内部 focus 时，按钮/色板/拖动图标淡入显示
-   *   标题输入框始终可见（核心交互） */
+   *   标题输入框始终可见（核心交互）
+   *   完成按钮：未完成态跟随 hover/focus 淡入，已完成态 .completed 通过 !important 常显 */
   .note-app:hover .close-btn,
   .note-app:hover .palette,
   .note-app:hover .drag-grip,
+  .note-app:hover .complete-btn:not(.completed),
   .note-app:focus-within .close-btn,
   .note-app:focus-within .palette,
-  .note-app:focus-within .drag-grip {
+  .note-app:focus-within .drag-grip,
+  .note-app:focus-within .complete-btn:not(.completed) {
     opacity: 1;
   }
 

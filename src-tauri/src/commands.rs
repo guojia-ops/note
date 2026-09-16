@@ -121,6 +121,54 @@ pub fn unpin_note(app: AppHandle, state: State<AppState>, id: String) -> Result<
     Ok(())
 }
 
+/// 标记便签为已完成
+/// - 写入 completed_at = now
+/// - 若 pinned=true 则自动置为 false，并关闭对应便签窗口（完成即收回）
+/// - emit note:completed
+#[tauri::command]
+pub fn complete_note(app: AppHandle, state: State<AppState>, id: String) -> Result<Note> {
+    let mut note = match state.complete(&id) {
+        Ok(n) => n,
+        Err(e) => {
+            emit_storage_error(&app, &e);
+            return Err(e);
+        }
+    };
+
+    // 若便签正贴出 → 自动收回（pinned=false + 关闭窗口）
+    if note.pinned {
+        note = match state.set_pinned(&id, false) {
+            Ok(n) => n,
+            Err(e) => {
+                emit_storage_error(&app, &e);
+                return Err(e);
+            }
+        };
+        let label = format!("note-{}", id);
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.close();
+        }
+    }
+
+    let _ = app.emit(event_name::NOTE_COMPLETED, NotePayload { id });
+    Ok(note)
+}
+
+/// 撤销完成（completed_at = None）
+/// 不改变 pinned 状态（贴出的便签不收回），用户可继续编辑或点关闭
+#[tauri::command]
+pub fn uncomplete_note(app: AppHandle, state: State<AppState>, id: String) -> Result<Note> {
+    let note = match state.uncomplete(&id) {
+        Ok(n) => n,
+        Err(e) => {
+            emit_storage_error(&app, &e);
+            return Err(e);
+        }
+    };
+    let _ = app.emit(event_name::NOTE_UNCOMPLETED, NotePayload { id });
+    Ok(note)
+}
+
 /// 获取配置
 #[tauri::command]
 pub fn get_config(state: State<AppState>) -> Result<Config> {
